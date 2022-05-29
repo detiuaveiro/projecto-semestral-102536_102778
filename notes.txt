@@ -1,0 +1,24 @@
+==== TCP vs UDP ==== 
+
+Qual o protocolo de transporte a utilizar?
+Vamos utilizar o TCP visto que:
+    1. tratar automaticamente da fragmentação dos pacotes
+    2. permite a criacao de um canal logico, o que torna a conexao fiavel e segura
+    3. os pacotes são ordenados automaticamente pelo protocolo
+
+Possiveis desvantagens:
+    1. visto que o TCP recorre a um middleware para a criacao de um canal logico, fragmentação de mensagens, etc o que torna o processo mais lento
+
+
+Vantagens do uso do UDP?
+    1. mais rápido do que o UPD, visto que nao envolve qualquer middleware
+
+desvantagens do UDP?
+    1. a fragmentação tem de ser tratada pelo programador
+    2. nao existe garantia de que os pacotes chegam ao destino com sucesso
+    3. não existe a garantia de os pacotes chegarem com a ordem que foram enviados
+    4. pode haver perda de informação
+
+
+Conclusao:
+    Concluimos que o TCP traz mais vantagens do que o UDP, sendo mais adequado ao projeto a desenvolver. Será então escolhido o TCP
