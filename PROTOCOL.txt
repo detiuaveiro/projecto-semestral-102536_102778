@@ -1,0 +1,47 @@
+cada node vai ter:
+{ hashkey : image_path } #só das locais
+{ socket : (address, port) } SYNC
+
+principal_node= (address, port) SYNC
+
+{ num_img: (address, port) } # temp para saber quem tem menos imagens pra enviar o backup
+
+{ hashkey: [(address, port), (address, port), num_pixeis, type] } SYNC # node e node backup de todas as imagens
+
+caso a imagem seja melhor vai ter de mandar msg ao portador da imagem antiga pra a eliminar ou eliminar se for ele o portador
+a imagem é melhor se:
+
+if new is cores: 
+    if new_num_pixeis > num_pixeis:
+        replace
+    if old is not cores and new_num_pixeis > 0.90* num_pixeis:
+        replace
+else:
+    if old is not cores and new_num pixeis > num_pixeis:
+        replace
+    if old is cores and 0.90*new_num_pixeis > num_pixeis:
+        replace
+
+
+vai ser preciso eleger um node como principal que faz com que apenas 1 client dê join de cada vez
+caso este morra, os restantes têm de concordar no mesmo node para eleger
+quem tiver a porta mais baixa
+
+pra dar join tenta ao 5000, se nao existir tenta ao 5001... e depois fica com porta mais baixa
+recria a socket
+atualiza como principal_node
+
+quando o client da join vai receber o numero de imagens que cada node tem e guardar no {} e depois envia o backup pra quem tiver menos
+
+sempre que um der join ou morrer ocorre stabilize
+os {} SYNC vao ser atualizados 
+se o principal_node morrer este valor é atualizado
+
+picle 
+
+cmd={
+    "": 0
+}
+
+{"COMMAND" : cmd[""], ....}
+
