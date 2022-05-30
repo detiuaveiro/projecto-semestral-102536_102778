@@ -2,8 +2,6 @@ cada node vai ter:
 { hashkey : image_path } #só das locais
 { socket : (address, port) } SYNC
 
-principal_node= (address, port) SYNC
-
 { num_img: (address, port) } # temp para saber quem tem menos imagens pra enviar o backup
 
 { hashkey: [(address, port), (address, port), num_pixeis, type] } SYNC # node e node backup de todas as imagens
@@ -29,13 +27,12 @@ quem tiver a porta mais baixa
 
 pra dar join tenta ao 5000, se nao existir tenta ao 5001... e depois fica com porta mais baixa
 recria a socket
-atualiza como principal_node
+recebe de quem conecta todos os nodes da rede
 
 quando o client da join vai receber o numero de imagens que cada node tem e guardar no {} e depois envia o backup pra quem tiver menos
 
 sempre que um der join ou morrer ocorre stabilize
 os {} SYNC vao ser atualizados 
-se o principal_node morrer este valor é atualizado
 
 picle 
 
