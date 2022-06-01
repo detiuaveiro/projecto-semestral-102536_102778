@@ -1,10 +1,11 @@
 cada node vai ter:
 { hashkey : image_path } #só das locais
+{ hashkey : image_path } #só das locais backup
 { socket : (address, port) } SYNC
 
 { num_img: (address, port) } # temp para saber quem tem menos imagens pra enviar o backup
 
-{ hashkey: [(address, port), (address, port), num_pixeis, type] } SYNC # node e node backup de todas as imagens
+{ hashkey: [(address, port), (address, port), num_pixeis, num_colors] } SYNC # node e node backup de todas as imagens
 
 caso a imagem seja melhor vai ter de mandar msg ao portador da imagem antiga pra a eliminar ou eliminar se for ele o portador
 a imagem é melhor se:
