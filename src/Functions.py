@@ -68,7 +68,7 @@ class Functions:
                         my_img_list.put(hash, imgPath)
                         #TODO delete image from old peers
                     
-                    elif current_image[3] and num_pixeis > 0.9*current_image[2]:
+                    elif current_image[3] and 0.9*num_pixeis > current_image[2]:
 
                         cls.put_image(hashkey_dict, hash, num_pixeis, is_colored, myConnTup, OtherConnTups)
                         my_img_list.put(hash, imgPath)
