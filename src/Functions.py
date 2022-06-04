@@ -1,82 +1,109 @@
 from PIL import Image
 import imagehash
 import glob
+import os
+from Protocol import Protocol as p
 
 class Functions:
 
     @classmethod
-    def put_image(cls, hashkey_dict, hash, num_pixeis, is_colored, myConnTup, OtherConnTups):
+    def is_better(cls,is_colored1, is_colored2, num_pixeis1, num_pixeis2):
+        """
+        Compare two images and return True if img1 is better than img2.
+        """
+        if is_colored1 == is_colored2:
+            return num_pixeis1 > num_pixeis2
+        
+        if is_colored1:
+            return num_pixeis1 > 0.7*num_pixeis2
 
-        # TODO choose a peer to send the backup image to based on the number of images they already have
-
-        otherTup = ("adress", "port")
-
-        hashkey_dict[hash]= [myConnTup, otherTup, num_pixeis, is_colored]
+        if is_colored2:
+            return 0.7*num_pixeis1 > num_pixeis2
 
 
     @classmethod
-    def my_images(cls, folder_path, hashkey_dict, myConnTup, OtherConnTups):
+    def delete_file(cls,img_path):
+        """
+        Delete image from disk.
+        """
+        # os.remove(img_path)
+        print("Deleted:", img_path)
 
-        # { hashkey: [(address, port), (address, port), num_pixeis, is_colored] }
+        
+    @classmethod
+    def starting_img_list(cls,folder_path):
+        """
+        Return map of image hashkey to image (in case there is the same hash, the best image remains).
+        """
+        # img_map= { hashkey: (img_path, is_colored, num_pixeis, num_bytes) }
 
-        my_img_list={}
-
+        img_map={}
         imageList= glob.glob(folder_path+'/*')
 
         for imgPath in imageList:
-            img = Image.open(imgPath)
-            hash = str(imagehash.average_hash(img))
-
             try:
+                img = Image.open(imgPath)
+                hash = str(imagehash.average_hash(img))
                 is_colored= len(set(img.getdata()))> 65536
                 size= img.size
                 num_pixeis= size[0]*size[1]
             except:
-                print("Error: ", imgPath)
-                #TODO delete image 
+                print("Error opening image: ", imgPath)
+                cls.delete_file(imgPath)
                 continue
 
-            if hash not in hashkey_dict.keys():
-                cls.put_image(hashkey_dict, hash, num_pixeis, is_colored, myConnTup, OtherConnTups)
-                my_img_list.put(hash, imgPath)
+            if hash not in img_map.keys():
+                print("New image:", imgPath)
+                img_map[hash]= (imgPath, is_colored, num_pixeis, os.path.getsize(imgPath))
+
+            elif cls.is_better(is_colored, img_map[hash][1], num_pixeis, img_map[hash][2]):
+                print("Better image found: ", imgPath)
+                cls.delete_file(img_map[hash][0])
+                img_map[hash]= (imgPath, is_colored, num_pixeis, os.path.getsize(imgPath))
 
             else:
-                current_image= hashkey_dict[hash]
+                print("Worse image found: ", imgPath)
+                cls.delete_file(imgPath)
 
-                if is_colored:
+        return img_map
 
-                    if num_pixeis > current_image[2]:
+    @classmethod
+    def occupied_space(cls,folder_path):
+        """
+        Return occupied space in bytes.
+        """
+        return sum([os.path.getsize(f) for f in glob.glob(folder_path+'/*')])
 
-                        cls.put_image(hashkey_dict, hash, num_pixeis, is_colored, myConnTup, OtherConnTups)
-                        my_img_list.put(hash, imgPath)
-                        #TODO delete image from old peers
+    @classmethod
+    def choose_backup(cls, img_path, backup_list, all_tup, num_bytes):
+        """
+        Choose a backup node for the image and send it
+        """
+        # backup_list = { (addres, port): occupied_space }
 
-                    elif current_image[3] and num_pixeis > 0.9*current_image[2]:
-                        
-                        cls.put_image(hashkey_dict, hash, num_pixeis, is_colored, myConnTup, OtherConnTups)
-                        my_img_list.put(hash, imgPath)
-                        #TODO delete image from old peers
+        tup= min(backup_list, key=backup_list.get)
+        socket_= all_tup[tup]
+        # TODO send image to socket as buckup
+        backup_list[tup] += num_bytes
+        return tup        
 
-                    else:
-                        #TODO delete image
-                        continue
-                else:
+    @classmethod
+    def update_general_map(cls,img_map, general_map, my_tup, all_tup, backup_list):
+        """
+        Update general_map with img_map.
+        """
+        # general_map = { hashkey: [ (adress1, port1), (adress2, port2), is_colored, num_pixeis, num_bytes ] }
 
-                    if not current_image[3] and num_pixeis > current_image[2]:
+        for hashkey in img_map.keys():
 
-                        cls.put_image(hashkey_dict, hash, num_pixeis, is_colored, myConnTup, OtherConnTups)
-                        my_img_list.put(hash, imgPath)
-                        #TODO delete image from old peers
-                    
-                    elif current_image[3] and 0.9*num_pixeis > current_image[2]:
+            if hashkey not in general_map.keys():
+                print("New image:", img_map[hashkey][0])
+                backup_tup = cls.choose_backup(img_map[hashkey][0], backup_list, all_tup, img_map[hashkey][3])
+                general_map[hashkey] = [ my_tup, backup_tup, img_map[hashkey][1], img_map[hashkey][2], img_map[hashkey][3] ]
+                #TODO update other nodes general_map
+                
+                
+    
 
-                        cls.put_image(hashkey_dict, hash, num_pixeis, is_colored, myConnTup, OtherConnTups)
-                        my_img_list.put(hash, imgPath)
-                        #TODO delete image from old peers
-
-                    else:
-                        #TODO delete image
-                        continue
-                    
-        pass
         
+
