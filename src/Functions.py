@@ -1,5 +1,3 @@
-from asyncio.windows_events import NULL
-from turtle import update
 from PIL import Image
 import imagehash
 import os
@@ -152,8 +150,8 @@ class Functions:
         """
         self.nodes_imgs={}
 
-        for hash in self.general_map.keys():
-            self.nodes_imgs[hash]=[]
+        for node in self.all_socks.keys():
+            self.nodes_imgs[node]=[]
 
         for key, val in self.general_map.items():
             if val[0] != self.my_node:
@@ -246,7 +244,7 @@ class Functions:
         And update img_map.
         """
         img_path = os.path.join(self.folder_path, img_name)
-        img.save(img_path) 
+        # img.save(img_path) 
         self.img_map[hashkey] = (img_name, num_colors, num_pixeis, num_bytes)
         print("New image:", img_path)
 
@@ -256,14 +254,18 @@ class Functions:
         Re-send backup images if node dies and update self.general_map and self.storage.
         """
         self.update_nodes_imgs()
-        self.nodes_storage()
-        self.storage.pop(node)
-
-        update_lst={}
 
         for hashkey in self.nodes_imgs[node]:
             self.general_map.pop(hashkey)
 
+        self.storage.pop(node)
+        self.all_nodes.remove(node)
+        self.all_socks.pop(node)
+        
+        self.nodes_storage()
+
+        update_lst={}
+        
         for hashkey in self.nodes_imgs[node]:
 
             if hashkey in self.img_map.keys():
@@ -271,3 +273,14 @@ class Functions:
                 self.update_img(hashkey, update_lst)
 
         self.send_update(update_lst)
+
+
+    def send_img(self, hashkey, sock):
+        """
+        Send image to node.
+        """
+        img_name = self.img_map[hashkey][0]
+        img_path = os.path.join(self.folder_path, img_name)
+        img = Image.open(img_path)
+        
+        #TODO send image only to node 
