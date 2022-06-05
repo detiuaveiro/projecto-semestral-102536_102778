@@ -1,8 +1,12 @@
 from Functions import Functions as f
 
-folder='../node0'
-# folder='../images'
+# folder0='../node0'
+# folder0='../node1'
+folder0='../node2'
+# folder0='../images'
 
-img_map= f.starting_img_list(folder)
+# img_map0= f.starting_img_list(folder0)
 
-print(f.occupied_space(folder))
+# print("img_map:")
+# for item in img_map0.items():
+#     print(item)
