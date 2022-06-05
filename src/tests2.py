@@ -1,12 +1,9 @@
 from Functions import Functions as f
 
-# folder0='../node0'
-# folder0='../node1'
-folder0='../node2'
-# folder0='../images'
+x = f()
 
-# img_map0= f.starting_img_list(folder0)
+for item in x.general_map.items():
+    print(item)
 
-# print("img_map:")
-# for item in img_map0.items():
-#     print(item)
+for item in x.storage.items():
+    print(item)

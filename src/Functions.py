@@ -1,3 +1,4 @@
+from asyncio.windows_events import NULL
 from turtle import update
 from PIL import Image
 import imagehash
@@ -6,47 +7,69 @@ from Protocol import Protocol as p
 
 class Functions:
 
-    # img_map = 
+    # self.img_map = 
     # { hashkey: (img_name, num_colors, num_pixeis, num_bytes) } 
     # local
 
-    # my_node = (address, port)
+    # self.my_node = (address, port)
     # local
 
-    # all_nodes = [ (address, port), ... ]
-    # SYNCRONIZED , includes my_node
+    # self.all_nodes = [ (address, port), ... ]
+    # SYNCRONIZED , includes self.my_node
 
-    # all_socks = 
+    # self.all_socks = 
     # { (address, port) : socket }
     # local, all other nodes
 
-    # general_map = 
+    # self.general_map = 
     # { hashkey: [ (address1, port1), (address2, port2), num_colors, num_pixeis, num_bytes ] }
     # SYNCRONIZED
 
     # update_lst = 
-    # { hashkey: [ (address1, port1), (address2, port2), num_colors, num_pixeis, num_bytes, img_name ] } 
+    # { hashkey: [ (address1, port1), (address2, port2), num_colors, num_pixeis, num_bytes ] } 
     # changes to send to all nodes
 
-    # storage = 
+    # self.storage = 
     # { (address, port): occupied_space } 
     # local
 
-    # nodes_imgs = 
+    # self.nodes_imgs = 
     # { (address, port) : [ hashkey, ... ] }
     # local
 
     def __init__(self):
-        self.folder_path = '../node0'
+        self.folder_path = '../node2'
         self.my_node = ("localhost", 5000)
 
-        self.img_map= self.starting_img_list(self.folder_path)
+        self.img_map= dict()
+        self.starting_img_list()
 
-            
+        self.all_nodes= list()
+        self.all_nodes= [("localhost", 5000), ("localhost", 5001), ("localhost", 5002), ("localhost", 5003)]
 
+        self.all_socks= dict()
+        self.all_socks= {("localhost", 5001): "sock1", ("localhost", 5002): "sock2", ("localhost", 5003):"sock3"}
 
-    @classmethod
-    def is_better(cls, num_colors1, num_colors2, num_pixeis1, num_pixeis2):
+        self.general_map= dict()
+
+        self.storage= dict() #updated when a node dies
+        self.nodes_storage()
+
+        self.merge_my_imgs()
+
+        self.nodes_imgs= dict() #updated when a node dies
+
+        # quando receber um update para o general_map
+        # self.update_general_map(update_lst)
+
+        # quando receber uma imagem e a info
+        # self.save_img(img, hashkey, img_name, num_colors, num_pixeis, num_bytes)
+
+        # quando um nó morrer
+        # self.handle_disconect(node) 
+
+    
+    def is_better(self, num_colors1, num_colors2, num_pixeis1, num_pixeis2):
         """
         Compare two images and return True if img1 is better than img2.
         """
@@ -61,27 +84,26 @@ class Functions:
             return 0.7*num_pixeis1 > num_pixeis2
 
 
-    @classmethod
-    def delete_file(cls, folder_path, img_name):
+    def delete_file(self, img_name):
         """
         Delete image from disk.
         """
-        img_path = os.path.join(folder_path, img_name)
+        img_path = os.path.join(self.folder_path, img_name)
         # os.remove(img_path)
         print("Deleted:", img_path)
 
-        
-    @classmethod
-    def starting_img_list(cls, folder_path):
+    
+    def starting_img_list(self):
         """
         Return map of image hashkey to image (in case there is the same hash, the best image remains).
         """
-        img_map={}
-        imageList= os.listdir(folder_path)
+        print("\nStarting my img list\n")
+        self.img_map={}
+        imageList= os.listdir(self.folder_path)
 
         for img_name in imageList:
 
-            img_path= os.path.join(folder_path, img_name)
+            img_path= os.path.join(self.folder_path, img_name)
 
             try:
                 img = Image.open(img_path)
@@ -91,162 +113,161 @@ class Functions:
                 num_pixeis= size[0]*size[1]
             except:
                 print("Error opening image: ", img_path)
-                cls.delete_file(folder_path, img_name)
+                self.delete_file(img_name)
                 continue
 
-            if hash not in img_map.keys():
+            if hash not in self.img_map.keys():
                 print("New image:", img_path)
-                img_map[hash]= (img_name, num_colors, num_pixeis, os.path.getsize(img_path))
+                self.img_map[hash]= (img_name, num_colors, num_pixeis, os.path.getsize(img_path))
 
-            elif cls.is_better(num_colors, img_map[hash][1], num_pixeis, img_map[hash][2]):
+            elif self.is_better(num_colors, self.img_map[hash][1], num_pixeis, self.img_map[hash][2]):
                 print("Better image found: ", img_path)
-                cls.delete_file(folder_path, img_map[hash][0])
-                img_map[hash] = (img_name, num_colors, num_pixeis, os.path.getsize(img_path))
+                self.delete_file(self.img_map[hash][0])
+                self.img_map[hash] = (img_name, num_colors, num_pixeis, os.path.getsize(img_path))
 
             else:
                 print("Worse image found: ", img_path)
-                cls.delete_file(folder_path, img_name)
+                self.delete_file(img_name)
 
-        return img_map
-
-
-    @classmethod
-    def nodes_storage(cls, general_map, all_socks):
+    
+    def nodes_storage(self):
         """
         Return occupied space in bytes.
         """
-        storage={}
+        self.storage={}
 
-        for node in all_socks.keys():
-            storage[node]= 0
+        for node in self.all_socks.keys():
+            self.storage[node]= 0
 
-        for val in general_map.values():
-            storage[val[0]] += val[4]
-            storage[val[1]] += val[4]
+        for val in self.general_map.values():
+            if val[0] != self.my_node:
+                self.storage[val[0]]+= val[4]
+            if val[1] != self.my_node:
+                self.storage[val[1]]+= val[4]
 
-        return storage
-
-
-    @classmethod
-    def nodes_imgs(cls, general_map):
+    
+    def update_nodes_imgs(self):
         """
         Return list of images in each node.
         """
-        nodes_imgs={}
+        self.nodes_imgs={}
 
-        for hash in general_map.keys():
-            nodes_imgs[hash]=[]
+        for hash in self.general_map.keys():
+            self.nodes_imgs[hash]=[]
 
-        for key, val in general_map.items():
-            nodes_imgs[val[0]].append(key)
-            nodes_imgs[val[1]].append(key)
+        for key, val in self.general_map.items():
+            if val[0] != self.my_node:
+                self.nodes_imgs[val[0]].append(key)
+            if val[1] != self.my_node:
+                self.nodes_imgs[val[1]].append(key)
 
-        return nodes_imgs
-
-
-    @classmethod
-    def get_backup_node(cls, folder_path, hashkey, img_map, general_map, all_socks, storage):
+    
+    def get_backup_node(self, hashkey):
         """
         Choose the best node to backup the image.
-        Send the image and update storage.
+        Send the image and update self.storage.
         """
-        if general_map.get(hashkey) is not None:
-            val = general_map[hashkey]
-            storage[val[0]] -= val[4]
-            storage[val[1]] -= val[4]
+        if self.general_map.get(hashkey) is not None:
+            val = self.general_map[hashkey]
+            if val[0] != self.my_node:
+                self.storage[val[0]] -= val[4]
+            if val[1] != self.my_node:
+                self.storage[val[1]] -= val[4]
 
             #TODO send msg to old nodes to delete the file
 
-        backup_node= min(storage, key=storage.get)
+        backup_node= min(self.storage, key=self.storage.get)
 
-        #TODO send image to backup_node
-        # use all_socks and img_map to get the name of the file
+        #TODO send image and its info to backup_node
+        # use self.all_socks and self.img_map to get the name of the file
+        # backup node updates its img_map
+        print("Image sent to backup node: ", backup_node)
      
-        storage[backup_node] += img_map[hashkey][3]
+        self.storage[backup_node] += self.img_map[hashkey][3]
 
         return backup_node
 
 
-    @classmethod
-    def update_img(cls, folder_path, hashkey, img_map, general_map, my_node, all_socks, storage, update_lst):
+    def update_img(self, hashkey, update_lst):
         """
-        Add/replace image to general_map and update_lst.
-        Update storage and send image to backup node.
+        Add/replace image to self.general_map and update_lst.
+        Update self.storage and send image to backup node.
         """
-        backup_node= cls.get_backup_node(folder_path, hashkey, img_map, general_map, all_socks, storage)
-        general_map[hashkey]= (my_node, backup_node, img_map[hashkey][1], img_map[hashkey][2], img_map[hashkey][3])
-        update_lst[hashkey]= (my_node, backup_node, img_map[hashkey][1], img_map[hashkey][2], img_map[hashkey][3], img_map[hashkey][0])
+        backup_node= self.get_backup_node(hashkey)
+        self.general_map[hashkey]= (self.my_node, backup_node, self.img_map[hashkey][1], self.img_map[hashkey][2], self.img_map[hashkey][3])
+        update_lst[hashkey]= (self.my_node, backup_node, self.img_map[hashkey][1], self.img_map[hashkey][2], self.img_map[hashkey][3])
    
 
-    @classmethod
-    def send_update(cls, update_lst, all_socks):
+    def send_update(self, update_lst):
         """
         Send update_lst to all nodes.
         """
         #TODO send update_lst to all nodes
 
 
-    @classmethod
-    def merge_my_imgs(cls, folder_path, img_map, general_map, my_node, all_socks, storage):
+    def merge_my_imgs(self):
         """
-        Update general_map with img_map.
+        Update self.general_map with self.img_map.
         """
+        print("\nMerging my images...\n")
         update_lst={}
 
-        for hashkey in img_map.keys():
+        for hashkey in self.img_map.keys():
 
-            if hashkey not in general_map.keys():
+            if hashkey not in self.general_map.keys():
 
-                print("New image:", img_map[hashkey][0])
-                cls.update_img(hashkey, folder_path, img_map, general_map, my_node, all_socks, storage, update_lst)
+                print("New image:", self.img_map[hashkey][0])
+                self.update_img(hashkey, update_lst)
             
-            elif cls.is_better(img_map[hashkey][1], general_map[hashkey][2], img_map[hashkey][2], general_map[hashkey][3]):
+            elif self.is_better(self.img_map[hashkey][1], self.general_map[hashkey][2], self.img_map[hashkey][2], self.general_map[hashkey][3]):
 
-                print("Better image found: ", img_map[hashkey][0])
-                cls.update_img(hashkey, folder_path, img_map, general_map, my_node, all_socks, storage, update_lst)
+                print("Better image found: ", self.img_map[hashkey][0])
+                self.update_img(hashkey, update_lst)
 
             else:
-                print("Worse image found: ", img_map[hashkey][0])
-                cls.delete_file(img_map[hashkey][0])
-                img_map.pop(hashkey)
+                print("Worse image found: ", self.img_map[hashkey][0])
+                self.delete_file(self.img_map[hashkey][0])
+                self.img_map.pop(hashkey)
 
-        cls.send_update(update_lst, all_socks)
+        self.send_update(update_lst)
 
-
-    @classmethod
-    def update_general_map(cls, general_map, update_lst, my_node, img_map):
+    
+    def update_general_map(self, update_lst):
         """
-        Update general_map with update_lst.
+        Update self.general_map with update_lst.
         """
         for key, val in update_lst.items():
-            general_map[key] = val[:-1]
+            self.general_map[key] = val
 
-            if val[1] == my_node:
-                print("New image:", val[5])
-                img_map[key] = (val[5], val[2], val[3], val[4])
-
-
-    @classmethod
-    def save_img(cls, img, folder_path, img_name):
+    
+    def save_img(self, img, hashkey, img_name, num_colors, num_pixeis, num_bytes):
         """
         Save image to disk.
+        And update img_map.
         """
-        img_path = os.path.join(folder_path, img_name)
-        img.save(img_path)
+        img_path = os.path.join(self.folder_path, img_name)
+        img.save(img_path) 
+        self.img_map[hashkey] = (img_name, num_colors, num_pixeis, num_bytes)
         print("New image:", img_path)
 
 
-    @classmethod
-    def handle_disconect(cls, folder_path, node, my_node, all_socks, img_map, nodes_imgs, general_map, storage):
+    def handle_disconect(self, node):
         """
-        Re-send backup images if node dies and update general_map and storage.
+        Re-send backup images if node dies and update self.general_map and self.storage.
         """
+        self.update_nodes_imgs()
+        self.nodes_storage()
+        self.storage.pop(node)
+
         update_lst={}
 
-        for hashkey in nodes_imgs[node]:
+        for hashkey in self.nodes_imgs[node]:
+            self.general_map.pop(hashkey)
 
-            if hashkey in img_map.keys():
-                print("Re-making backup image:", img_map[hashkey][0])
-                cls.update_img(folder_path, hashkey, img_map, general_map, my_node, all_socks, storage, update_lst)
+        for hashkey in self.nodes_imgs[node]:
 
-        cls.send_update(update_lst, all_socks)
+            if hashkey in self.img_map.keys():
+                print("Re-making backup to image:", self.img_map[hashkey][0])
+                self.update_img(hashkey, update_lst)
+
+        self.send_update(update_lst)
