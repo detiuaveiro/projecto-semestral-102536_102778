@@ -93,7 +93,7 @@ class Functions:
     
     def starting_img_list(self):
         """
-        Return map of image hashkey to image (in case there is the same hash, the best image remains).
+        Get map of image hashkey to image (in case there is the same hash, the best image remains).
         """
         print("\nStarting my img list\n")
         self.img_map={}
@@ -106,9 +106,10 @@ class Functions:
             try:
                 img = Image.open(img_path)
                 hash = str(imagehash.average_hash(img))
-                num_colors= len(set(img.getdata()))
-                size= img.size
-                num_pixeis= size[0]*size[1]
+                num_colors = len(set(img.getdata()))
+                size = img.size
+                num_pixeis = size[0]*size[1]
+                num_bytes = os.path.getsize(img_path)
             except:
                 print("Error opening image: ", img_path)
                 self.delete_file(img_name)
@@ -116,21 +117,30 @@ class Functions:
 
             if hash not in self.img_map.keys():
                 print("New image:", img_path)
-                self.img_map[hash]= (img_name, num_colors, num_pixeis, os.path.getsize(img_path))
+                self.img_map[hash]= (img_name, num_colors, num_pixeis, num_bytes)
 
             elif self.is_better(num_colors, self.img_map[hash][1], num_pixeis, self.img_map[hash][2]):
                 print("Better image found: ", img_path)
                 self.delete_file(self.img_map[hash][0])
-                self.img_map[hash] = (img_name, num_colors, num_pixeis, os.path.getsize(img_path))
+                self.img_map[hash] = (img_name, num_colors, num_pixeis, num_bytes)
 
             else:
                 print("Worse image found: ", img_path)
                 self.delete_file(img_name)
 
+
+    def add_new_node(self, node, sock):
+        """
+        Add new node to all_nodes and all_socks.
+        """
+        self.all_nodes.append(node)
+        self.all_socks[node] = sock
+        print("\nNew node joined: ", node, "\n")
+
     
     def nodes_storage(self):
         """
-        Return occupied space in bytes.
+        Occupied space in bytes.
         """
         self.storage={}
 
@@ -146,7 +156,7 @@ class Functions:
     
     def update_nodes_imgs(self):
         """
-        Return list of images in each node.
+        Update list of images in each node.
         """
         self.nodes_imgs={}
 
@@ -201,6 +211,7 @@ class Functions:
         Send update_lst to all nodes.
         """
         #TODO send update_lst to all nodes
+        print("\nUpdate sent to all nodes\n")
 
 
     def merge_my_imgs(self):
@@ -253,23 +264,23 @@ class Functions:
         """
         Re-send backup images if node dies and update self.general_map and self.storage.
         """
+        print("\nNode disconnected: ", node, "\n")
         self.update_nodes_imgs()
-
-        for hashkey in self.nodes_imgs[node]:
-            self.general_map.pop(hashkey)
+        self.nodes_storage()
 
         self.storage.pop(node)
         self.all_nodes.remove(node)
         self.all_socks.pop(node)
-        
-        self.nodes_storage()
+
+        for hashkey in self.nodes_imgs[node]:
+            self.general_map.pop(hashkey)
 
         update_lst={}
         
         for hashkey in self.nodes_imgs[node]:
 
             if hashkey in self.img_map.keys():
-                print("Re-making backup to image:", self.img_map[hashkey][0])
+                print("Re-making backup for image:", self.img_map[hashkey][0])
                 self.update_img(hashkey, update_lst)
 
         self.send_update(update_lst)
