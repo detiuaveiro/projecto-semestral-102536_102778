@@ -277,6 +277,8 @@ class Functions:
 
         update_lst={}
         
+        #TODO change to update all localy and send what it needs
+
         for hashkey in self.nodes_imgs[node]:
 
             if hashkey in self.img_map.keys():
@@ -295,3 +297,4 @@ class Functions:
         img = Image.open(img_path)
         
         #TODO send image only to node 
+        

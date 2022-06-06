@@ -1,0 +1,10 @@
+# Ignore everything
+*
+
+# But not these files...
+!.gitignore
+!Client.py
+!Daemon.py
+!Protocol.py
+!Functions.py
+!tests2.py
