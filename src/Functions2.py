@@ -1,4 +1,3 @@
-from pickle import NONE
 from PIL import Image
 import imagehash
 import os
@@ -121,7 +120,7 @@ class Functions:
                 self.delete_file(img_name)
                 continue
 
-            if hash not in self.img_map.keys():
+            if hash not in self.img_map:
                 print("New image:", img_path)
                 self.img_map[hash]= (num_colors, num_pixeis, num_bytes)
                 self.rename_file(self.folder_path, img_name, hash)
@@ -173,13 +172,22 @@ class Functions:
         """
         Update general_map and storage.
         """
-        if self.general_map.get(update[5]) is None:
+        if update[0] not in self.storage:
+            self.storage[update[0]] = 0
+        if update[0] not in self.nodes_imgs:
+            self.nodes_imgs[update[0]] = []
+        if update[1] not in self.storage:
+            self.storage[update[1]] = 0
+        if update[1] not in self.nodes_imgs:
+            self.nodes_imgs[update[1]] = []
+
+        if update[5] not in self.general_map:
             print("Update with new image: ", update[5])
-            if self.all_nodes(update[0]) is not None:
+            if update[0] in self.all_nodes:
                 if update[0] != self.my_node:
                     self.storage[update[0]] += update[4]
                     self.nodes_imgs[update[0]].append(update[5])
-            if self.all_nodes(update[1]) is not None:
+            if update[1] in self.all_nodes:
                 if update[1] != self.my_node:
                     self.storage[update[1]] += update[4]
                     self.nodes_imgs[update[1]].append(update[5])
@@ -188,19 +196,19 @@ class Functions:
         elif self.is_better(update[2], self.general_map[update[5]][2], update[3], self.general_map[update[5]][3], update[4], self.general_map[update[5]][4]):
             print("Update with better image: ", update[5])
             val= self.general_map[update[5]]
-            if self.all_nodes(val[0]) is not None:
+            if val[0] in self.all_nodes:
                 if val[0] != self.my_node:
                     self.storage[val[0]] -= val[4]
                     self.nodes_imgs[val[0]].remove(update[5])
-            if self.all_nodes(val[1]) is not None:
+            if val[1] in self.all_nodes:
                 if val[1] != self.my_node:
                     self.storage[val[1]] -= val[4]
                     self.nodes_imgs[val[1]].remove(update[5])
-            if self.all_nodes(update[0]) is not None:
+            if update[0] in self.all_nodes:
                 if update[0] != self.my_node:
                     self.storage[update[0]] += update[4]
                     self.nodes_imgs[update[0]].append(update[5])
-            if self.all_nodes(update[1]) is not None:
+            if update[1] in self.all_nodes:
                 if update[1] != self.my_node:
                     self.storage[update[1]] += update[4]
                     self.nodes_imgs[update[1]].append(update[5])
@@ -215,13 +223,13 @@ class Functions:
         Choose the best node to backup the image.
         Send the image and update self.storage.
         """
-        if self.general_map.get(hashkey) is not None:
+        if hashkey in self.general_map:
             val = self.general_map[hashkey]
-            if self.all_nodes(val[0]) is not None:
+            if val[0] in self.all_nodes:
                 if  val[0] != self.my_node:
                     self.storage[val[0]] -= val[4]
                     self.nodes_imgs[val[0]].remove(hashkey)
-            if self.all_nodes(val[0]) is not None:
+            if val[0] in self.all_nodes:
                 if val[1] != self.my_node:
                     self.storage[val[1]] -= val[4]
                     self.nodes_imgs[val[1]].remove(hashkey)
@@ -238,7 +246,7 @@ class Functions:
         """
         Send update to all nodes
         """
-        update= self.general_map[hashkey]
+        update= self.general_map[hashkey].copy()
         update.append(self.my_node)
         
         #TODO send update to all nodes
@@ -271,11 +279,13 @@ class Functions:
         """
         print("\nMerging my images...\n")
 
-        for hashkey in self.img_map.keys():
+        img_map_keys = list(self.img_map.keys())
+
+        for hashkey in img_map_keys:
 
             # TODO UPDATE DATA EVERYTIME WE GET AN UPDATE
 
-            if self.general_map.get(hashkey) is None:
+            if hashkey not in self.general_map:
                 print("New image:", hashkey)
                 self.backup_and_update(hashkey)
                 
@@ -298,14 +308,21 @@ class Functions:
 
         self.all_nodes.remove(node)
         self.all_socks.pop(node)
-        self.storage.pop(node)     
+        self.storage.pop(node)
 
         for hashkey in self.nodes_imgs[node]:
 
             # TODO UPDATE DATA EVERYTIME WE GET AN UPDATE
 
-            if self.img_map.get(hashkey) is not None:
+            if node in self.all_nodes:
+                self.storage[node] = []
+                for hash in self.nodes_imgs[node][self.nodes_imgs[node].index(hashkey):]:
+                    self.storage[node] += self.general_map[hash][2]
+                return
+
+            if hashkey in self.img_map:
                 print("Image: ", hashkey, " was lost")
                 self.backup_and_update(hashkey)
+                self.nodes_imgs[node].remove(hashkey)
 
         self.nodes_imgs.pop(node)
