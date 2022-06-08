@@ -32,9 +32,9 @@ for item in x.general_map.items():
 for item in x.storage.items():
     print(item)
 
-total=0
-for val in x.general_map.values():
-    if val[1]== ('localhost', 5001):
-        total+=val[4]
+print("check")
 
-print(total)
+x.starting_updates()
+
+for item in x.storage.items():
+    print(item)
