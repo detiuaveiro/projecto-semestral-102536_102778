@@ -35,5 +35,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
 
-    client = Daemon(args.host, args.port, args.folder)
+    client = Daemon(args.folder)
     client.run()

@@ -20,6 +20,18 @@ class Protocol:
 
 
     @classmethod
+    def msg_request_image_list(cls):
+        msg = pickle.dumps({"type": "request_list"})
+        return msg
+
+
+    @classmethod
+    def msg_image_list(cls, image_list):
+        msg = pickle.dumps({"type": "image_list", "image_list": image_list})
+        return msg
+
+
+    @classmethod
     def msg_request_image(cls, hashkey):
         msg = pickle.dumps({"type": "request", "hashkey": hashkey})
         return msg
@@ -31,17 +43,11 @@ class Protocol:
         return msg
 
 
-    @classmethod
-    def msg_request_image_list(cls):
-        msg = pickle.dumps({"type": "request_list"})
-        return msg
 
 
-    @classmethod
-    def msg_image_list(cls, image_list):
-        msg = pickle.dumps({"type": "image_list", "image_list": image_list})
-        return msg
 
+
+    """ Send and receive messages """
 
     @classmethod
     def send_msg(cls, msg, sock: socket):

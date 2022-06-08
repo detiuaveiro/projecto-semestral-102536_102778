@@ -106,6 +106,12 @@ class Daemon:
                 nodes = msg["nodes"]  # array with neighbour nodes
                 self.connect_to_nodes(nodes)
 
+            elif msg_type == ["request_list"]:
+                request_msg = P.msg_image_list(["image1", "image2", "image3", "image4"])
+                P.send_msg(request_msg, sock)
+
+            else:
+                print("ALERT: unknow message received!")
 
 
         else:
