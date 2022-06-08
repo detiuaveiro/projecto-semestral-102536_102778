@@ -46,7 +46,7 @@ class Client:
             if msg_type == "image_list":
                 img_lst = msg["image_list"]
                 
-                print("======= Images on network =======")
+                print("\n======= Images on network =======")
                 for img in img_lst:
                     print(img)
                 print("=================================")
@@ -76,7 +76,6 @@ class Client:
         sys.stdout.flush()
         
         client_input = stdin.read().strip()
-        print("Input: ", client_input)
         
         #print("User input: ", client_input)
 
