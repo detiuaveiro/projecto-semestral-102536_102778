@@ -69,11 +69,11 @@ class Functions:
             return 0.7*num_pixeis1 > num_pixeis2
 
 
-    def delete_file(self, img_name):
+    def delete_file(self, hashkey):
         """
         Delete image from disk.
         """
-        img_path = os.path.join(self.folder_path, img_name)
+        img_path = os.path.join(self.folder_path, hashkey)
         # os.remove(img_path)
         print("Deleted:", img_path)
 
@@ -83,7 +83,7 @@ class Functions:
         Rename image to hashkey.
         """
         img_path = os.path.join(folder_path, img_name)
-        os.rename(img_path, os.path.join(folder_path, hashkey))
+        # os.rename(img_path, os.path.join(folder_path, hashkey))
         print("Renamed to: ", hashkey)
 
     
@@ -127,7 +127,7 @@ class Functions:
 
             elif self.is_better(num_colors, self.img_map[hash][0], num_pixeis, self.img_map[hash][1], num_bytes, self.img_map[hash][2]):
                 print("Better image found: ", img_path)
-                self.delete_file(self.img_map[hash][0])
+                self.delete_file(hash)
                 self.img_map[hash] = (num_colors, num_pixeis, num_bytes)
                 self.rename_file(self.folder_path, img_name, hash)
 
@@ -302,7 +302,7 @@ class Functions:
     
     def handle_disconect(self, node):
         """
-        Re-send backup images if node dies and update self.general_map and self.storage.
+        Re-send backup images if node dies, update self.general_map and self.storage.
         """
         print("\nNode disconnected: ", node, "\n")
 
@@ -310,7 +310,9 @@ class Functions:
         self.all_socks.pop(node)
         self.storage.pop(node)
 
-        for hashkey in self.nodes_imgs[node]:
+        nodes_imgs_copy = self.nodes_imgs.copy()
+
+        for hashkey in nodes_imgs_copy[node]:
 
             # TODO UPDATE DATA EVERYTIME WE GET AN UPDATE
 
@@ -321,7 +323,7 @@ class Functions:
                 return
 
             if hashkey in self.img_map:
-                print("Image: ", hashkey, " was lost")
+                print("Remaking backup for: ", hashkey)
                 self.backup_and_update(hashkey)
                 self.nodes_imgs[node].remove(hashkey)
 

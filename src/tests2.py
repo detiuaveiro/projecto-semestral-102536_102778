@@ -21,6 +21,8 @@ x.storage= {('localhost', 5001): 100000, ('localhost', 5002): 120000}
 #     print(item)
 
 # x.starting_img_list()
+
+x.storage= {('localhost', 5001): 0, ('localhost', 5002): 0}
 print(x.img_map)
 x.merge_my_img()
 
@@ -29,3 +31,10 @@ for item in x.general_map.items():
 
 for item in x.storage.items():
     print(item)
+
+total=0
+for val in x.general_map.values():
+    if val[1]== ('localhost', 5001):
+        total+=val[4]
+
+print(total)
