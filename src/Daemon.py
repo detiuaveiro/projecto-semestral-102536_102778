@@ -82,17 +82,21 @@ class Daemon:
             print("msg recv: ", connect_msg)
             host = connect_msg["recv_host"]
             port = connect_msg["recv_port"]
-            node_type = connect_msg["node_type"] 
+            node_type = connect_msg["node_type"]
+            connect_type = connect_msg["type"]
 
             if node_type == "daemon":
                 print("DEAMON WANTS TO CONNECT")
 
-                # send to my neighbour all the nodes i know
-                nodes_msg = P.msg_connect_ack(self.all_nodes[1:], self.general_map)
-                P.send_msg(nodes_msg, conn)
-                
+                if connect_type == "first_connect":
+
+                    # send to my neighbour all the nodes i know
+                    nodes_msg = P.msg_connect_ack(self.all_nodes[1:], self.general_map)
+                    P.send_msg(nodes_msg, conn)
+
                 #store the neighbour node
                 self.add_new_node((host, port), sock)
+                
 
                 print("-------------------")
                 for n in self.all_socks.keys():
@@ -126,8 +130,8 @@ class Daemon:
 
             if msg_type == "connect_ack":
                 nodes = msg["nodes"]  # array with neighbour nodes
-
                 self.general_map = msg["general_map"]
+                print("General map received: ", self.general_map)
                 self.connect_to_nodes(nodes)
                 self.all_nodes += nodes
                 self.starting_updates()
@@ -139,6 +143,18 @@ class Daemon:
             elif msg_type == "request_list":
                 request_msg = P.msg_image_list(list(self.img_map.keys()))
                 P.send_msg(request_msg, sock)
+
+            elif msg_type == "update":
+                self.update_data(msg["update"])
+
+            elif msg_type == "debug":
+                print("\nDEBUG\n")
+                for item in sorted(self.general_map.items()):
+                    print(item)
+                for item in sorted(self.storage.items()):
+                    print(item)
+                for item in sorted(self.all_nodes):
+                    print(item)
 
             else:
                 print("ALERT: unknow message received!")
@@ -175,7 +191,7 @@ class Daemon:
         """ connect to other nodes """
 
         for n in nodes:
-            if n not in self.all_socks:
+            if n not in self.all_socks and n != self.my_node:
 
                 self.all_socks[n] = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 print("Connecting to ", n)
@@ -371,6 +387,8 @@ class Daemon:
         """
         Add new node to all_nodes and all_socks.
         """
+        if node == self.my_node:
+            return
         self.all_nodes.append(node)
         self.all_socks[node] = sock
         self.storage[node] = 0
@@ -382,14 +400,16 @@ class Daemon:
         """
         Update general_map and storage.
         """
-        if update[0] not in self.storage:
-            self.storage[update[0]] = 0
-        if update[0] not in self.nodes_imgs:
-            self.nodes_imgs[update[0]] = []
-        if update[1] not in self.storage:
-            self.storage[update[1]] = 0
-        if update[1] not in self.nodes_imgs:
-            self.nodes_imgs[update[1]] = []
+        if update[0] != self.my_node:
+            if update[0] not in self.storage:
+                self.storage[update[0]] = 0
+            if update[0] not in self.nodes_imgs:
+                self.nodes_imgs[update[0]] = []
+        if update[1] != self.my_node:
+            if update[1] not in self.storage:
+                self.storage[update[1]] = 0
+            if update[1] not in self.nodes_imgs:
+                self.nodes_imgs[update[1]] = []
 
         if update[5] not in self.general_map:
             print("Update with new image: ", update[5])
@@ -452,9 +472,13 @@ class Daemon:
         Send update to all nodes
         """
         update= self.general_map[hashkey].copy()
-        update.append(self.my_node)
+        update.append(hashkey)
         
-        #TODO send update to all nodes
+        for sock in self.all_socks.values():
+            update_msg = P.msg_update(update)
+            P.send_msg(update_msg, sock)
+
+        print("Update sent to all nodes")
 
     
     def send_img(self, hashkey, node):
@@ -488,7 +512,7 @@ class Daemon:
 
         for hashkey in img_map_keys:
 
-            # TODO UPDATE DATA EVERYTIME WE GET AN UPDATE
+            # TODO UPDATE DATA EVERYTIME WE GET AN UPDATE    
 
             if hashkey not in self.general_map:
                 print("New image:", hashkey)

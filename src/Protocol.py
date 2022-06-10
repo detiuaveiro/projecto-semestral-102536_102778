@@ -49,6 +49,20 @@ class Protocol:
         msg = pickle.dumps({"type": "image", "hashkey": hashkey, "image": image})
         return msg
 
+    
+    @classmethod
+    def msg_update(cls, update):
+        msg = pickle.dumps({"type": "update", "update": update})
+        return msg
+
+
+
+
+    @classmethod
+    def msg_debug(cls):
+        msg = pickle.dumps({"type": "debug"})
+        return msg
+
 
 
 
@@ -58,18 +72,22 @@ class Protocol:
 
     @classmethod
     def send_msg(cls, msg, sock: socket):
-        msg_size = len(msg).to_bytes(2, "big")
-        msg_to_send = msg_size + msg
-        sock.send(msg_to_send)
+        try:
+            msg_size = len(msg).to_bytes(2, "big")
+            msg_to_send = msg_size + msg
+            sock.send(msg_to_send)
+        except Exception as e:
+            print(e)
 
     @classmethod
     def receive_msg(cls, sock : socket):
-        msg_size= int.from_bytes(sock.recv(2), "big")
-
-        if msg_size != 0:
-            msg = sock.recv(msg_size)
-            return pickle.loads(msg)
-
+        try:
+            msg_size= int.from_bytes(sock.recv(2), "big")
+            if msg_size != 0:
+                msg = sock.recv(msg_size)
+                return pickle.loads(msg)
+        except Exception as e:
+            print(e)
         return None
 
 

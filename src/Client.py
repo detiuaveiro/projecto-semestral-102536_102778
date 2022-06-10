@@ -88,6 +88,12 @@ class Client:
             P.send_msg(request_msg, self.s)
             
             print("List request message has been sent!")
+
+        elif client_input == "debug":
+            request_debug = P.msg_debug()
+            P.send_msg(request_debug, self.s)
+            
+            print("Debug request message has been sent!")
         
         else:
             print("bruh")
