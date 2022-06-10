@@ -4,18 +4,25 @@ import socket
 class Protocol:
     """Functions to create and encode messages"""
 
+    @classmethod
+    def msg_first_connect(cls, node_type, recv_host, recv_port):
+        """ Connect message """
+        msg = pickle.dumps({"type": "first_connect", "node_type": node_type, "recv_host": recv_host, "recv_port": recv_port})
+        return msg
+        
+
+    @classmethod
+    def msg_connect_ack(cls, nodes : list, general_map: dict):
+        """ Send neighbours message """
+        msg = pickle.dumps({"type": "connect_ack", "nodes": nodes, "general_map": general_map})
+        return msg
+
+
 
     @classmethod
     def msg_connect(cls, node_type, recv_host, recv_port):
         """ Connect message """
         msg = pickle.dumps({"type": "connect", "node_type": node_type, "recv_host": recv_host, "recv_port": recv_port})
-        return msg
-
-
-    @classmethod
-    def msg_nodes(cls, nodes : dict):
-        """ Send neighbours message """
-        msg = pickle.dumps({"type": "nodes", "nodes": nodes})
         return msg
 
 

@@ -51,9 +51,10 @@ class Daemon:
 
             self.all_socks[self.central_node] = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.all_socks[self.central_node].connect(self.central_node)
+            self.all_nodes.append(self.central_node)
 
             #connect to central node
-            connect_msg = P.msg_connect(self.node_type, self.host, self.port)
+            connect_msg = P.msg_first_connect(self.node_type, self.host, self.port)
             P.send_msg(connect_msg, self.all_socks[self.central_node])
 
 
@@ -65,8 +66,6 @@ class Daemon:
             for n in self.all_socks.keys():
                 print(n)
             print("-------------------")
-
-            #_______________________________________
 
                  
         
@@ -88,12 +87,11 @@ class Daemon:
                 print("DEAMON WANTS TO CONNECT")
 
                 # send to my neighbour all the nodes i know
-                nodes_msg = P.msg_nodes(list(self.all_socks.keys()))
+                nodes_msg = P.msg_connect_ack(self.all_nodes[1:], self.general_map)
                 P.send_msg(nodes_msg, conn)
                 
                 #store the neighbour node
                 self.add_new_node((host, port), sock)
-                # self.all_socks[(host, port)] = sock
 
                 print("-------------------")
                 for n in self.all_socks.keys():
@@ -121,12 +119,19 @@ class Daemon:
         if msg:
             msg_type = msg["type"]
 
-            if msg_type == "nodes":
+            if msg_type == "connect_ack":
                 nodes = msg["nodes"]  # array with neighbour nodes
+
+                self.general_map = msg["general_map"]
                 self.connect_to_nodes(nodes)
+                self.all_nodes += nodes
+                self.starting_updates()
+                print(self.all_nodes)
+                print(self.storage)
+                self.merge_my_img()
 
             elif msg_type == "request_list":
-                request_msg = P.msg_image_list(["image1", "image2", "image3", "image4"])
+                request_msg = P.msg_image_list(list(self.img_map.keys()))
                 P.send_msg(request_msg, sock)
 
             else:

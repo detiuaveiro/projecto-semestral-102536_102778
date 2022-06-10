@@ -2,8 +2,10 @@ from Functions2 import Functions as f
 
 x = f()
 
-
-
+y=[1,2,3]
+z=[4,5,6]
+yz=y+z
+print(yz)
 # { hashkey: (img_name, num_colors, num_pixeis, num_bytes) } 
 
 # x.img_map= {'hash1': ( 70001, 100000, 23000)}
