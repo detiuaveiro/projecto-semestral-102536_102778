@@ -393,35 +393,32 @@ class Daemon:
 
         if update[5] not in self.general_map:
             print("Update with new image: ", update[5])
-            if update[0] in self.all_nodes:
-                if update[0] != self.my_node:
-                    self.storage[update[0]] += update[4]
-                    self.nodes_imgs[update[0]].append(update[5])
-            if update[1] in self.all_nodes:
-                if update[1] != self.my_node:
-                    self.storage[update[1]] += update[4]
-                    self.nodes_imgs[update[1]].append(update[5])
+            if update[0] in self.all_nodes[1:]:
+                self.storage[update[0]] += update[4]
+                self.nodes_imgs[update[0]].append(update[5])
+            if update[1] in self.all_nodes[1:]:
+                self.storage[update[1]] += update[4]
+                self.nodes_imgs[update[1]].append(update[5])
             self.general_map[update[5]] = update[0:5]
 
         elif self.is_better(update[2], self.general_map[update[5]][2], update[3], self.general_map[update[5]][3], update[4], self.general_map[update[5]][4]):
             print("Update with better image: ", update[5])
-            val= self.general_map[update[5]]
-            if val[0] in self.all_nodes:
-                if val[0] != self.my_node:
-                    self.storage[val[0]] -= val[4]
-                    self.nodes_imgs[val[0]].remove(update[5])
-            if val[1] in self.all_nodes:
-                if val[1] != self.my_node:
-                    self.storage[val[1]] -= val[4]
-                    self.nodes_imgs[val[1]].remove(update[5])
-            if update[0] in self.all_nodes:
-                if update[0] != self.my_node:
-                    self.storage[update[0]] += update[4]
-                    self.nodes_imgs[update[0]].append(update[5])
-            if update[1] in self.all_nodes:
-                if update[1] != self.my_node:
-                    self.storage[update[1]] += update[4]
-                    self.nodes_imgs[update[1]].append(update[5])
+            val = self.general_map[update[5]]
+            if val[0] in self.all_nodes[1:]:
+                self.storage[val[0]] -= val[4]
+                self.nodes_imgs[val[0]].remove(update[5])
+            if val[1] in self.all_nodes[1:]:
+                self.storage[val[1]] -= val[4]
+                self.nodes_imgs[val[1]].remove(update[5])
+            if update[0] in self.all_nodes[1:]:
+                self.storage[update[0]] += update[4]
+                self.nodes_imgs[update[0]].append(update[5])
+            if update[1] in self.all_nodes[1:]:
+                self.storage[update[1]] += update[4]
+                self.nodes_imgs[update[1]].append(update[5])
+
+            if update[0] == self.my_node or update[1] == self.my_node:
+                self.delete_file(update[5])
             self.general_map[update[5]] = update[0:5]
 
         else:
@@ -435,14 +432,12 @@ class Daemon:
         """
         if hashkey in self.general_map:
             val = self.general_map[hashkey]
-            if val[0] in self.all_nodes:
-                if  val[0] != self.my_node:
-                    self.storage[val[0]] -= val[4]
-                    self.nodes_imgs[val[0]].remove(hashkey)
-            if val[0] in self.all_nodes:
-                if val[1] != self.my_node:
-                    self.storage[val[1]] -= val[4]
-                    self.nodes_imgs[val[1]].remove(hashkey)
+            if val[0] in self.all_nodes[1:]:
+                self.storage[val[0]] -= val[4]
+                self.nodes_imgs[val[0]].remove(hashkey)
+            if val[0] in self.all_nodes[1:]:
+                self.storage[val[1]] -= val[4]
+                self.nodes_imgs[val[1]].remove(hashkey)
 
         backup_node= min(self.storage, key=self.storage.get)
 
