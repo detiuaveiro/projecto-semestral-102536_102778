@@ -20,6 +20,7 @@ class Daemon:
 
         self.client = None
 
+        self.merge_done=False
 
         self.folder_path = folder_path
         self.my_node = (self.host, self.port)
@@ -97,6 +98,10 @@ class Daemon:
                 for n in self.all_socks.keys():
                     print(n)
                 print("-------------------")
+
+                if not self.merge_done:
+                    self.merge_my_img()
+                    self.merge_done = True
                 
 
             if node_type == "client":
@@ -129,6 +134,7 @@ class Daemon:
                 print(self.all_nodes)
                 print(self.storage)
                 self.merge_my_img()
+                self.merge_done = True
 
             elif msg_type == "request_list":
                 request_msg = P.msg_image_list(list(self.img_map.keys()))

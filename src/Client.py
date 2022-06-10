@@ -3,8 +3,6 @@ import os
 import sys
 import socket
 import selectors
-from traceback import print_tb
-from urllib.request import urlcleanup
 from .Protocol import Protocol as P
 
 class Client:
@@ -49,7 +47,7 @@ class Client:
                 print("\n======= Images on network =======")
                 for img in img_lst:
                     print(img)
-                print("=================================")
+                print("===================================")
 
             else:
                 print("ALERT: unknow message received!")
