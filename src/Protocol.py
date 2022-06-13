@@ -45,8 +45,8 @@ class Protocol:
 
 
     @classmethod
-    def msg_image(cls, hashkey, image):
-        msg = pickle.dumps({"type": "image", "hashkey": hashkey, "image": image})
+    def msg_image(cls, update, image):
+        msg = pickle.dumps({"type": "image_backup", "update": update, "image": image})
         return msg
 
     
@@ -63,7 +63,16 @@ class Protocol:
         msg = pickle.dumps({"type": "debug"})
         return msg
 
+    @classmethod
+    def msg_debug_ack(cls, general_map, all_nodes, storage):
+        msg = pickle.dumps({"type": "debug_ack", "general_map": general_map, "all_nodes": all_nodes, "storage": storage})
+        return msg
 
+
+    @classmethod
+    def msg_empty(cls):
+        msg = pickle.dumps({"type": "empty"})
+        return msg
 
 
 
@@ -72,16 +81,19 @@ class Protocol:
 
     @classmethod
     def send_msg(cls, msg, sock: socket):
-        msg_size = len(msg).to_bytes(2, "big")
+        msg_size = len(msg).to_bytes(8, "big")
         msg_to_send = msg_size + msg
         sock.send(msg_to_send)
 
 
     @classmethod
     def receive_msg(cls, sock : socket):
-        msg_size= int.from_bytes(sock.recv(2), "big")
+        msg_size= int.from_bytes(sock.recv(8), "big")
         if msg_size != 0:
+            # msg=b""
+            # while len(msg) < msg_size:
+            #     msg += sock.recv(msg_size - len(msg))
             msg = sock.recv(msg_size)
             return pickle.loads(msg)
-
+            
 

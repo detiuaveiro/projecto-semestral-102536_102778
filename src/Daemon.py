@@ -1,6 +1,7 @@
 import socket
 import queue
 import selectors
+import pickle
 from .Protocol import Protocol as P
 from PIL import Image
 import imagehash
@@ -73,11 +74,7 @@ class Daemon:
                 print(n)
             print("-------------------")
 
-                 
-        
-
-        
-
+    
 
     def verify(self, sock, mask):
         conn, addr = sock.accept()
@@ -127,10 +124,11 @@ class Daemon:
 
 
 
-
     def read(self, sock :socket, mask):
         
         msg = P.receive_msg(sock)
+
+        #print("Msg type: ", msg["type"])
 
         if msg:
             msg_type = msg["type"]
@@ -155,35 +153,41 @@ class Daemon:
             elif msg_type == "update":
                 self.update_data(msg["update"])
 
+            elif msg_type == "image_backup":
+                self.save_img(msg["image"], msg["update"])
+
             elif msg_type == "debug":
-                print("\nDEBUG\n")
-                for item in sorted(self.general_map.items()):
-                    print(item)
-                for item in sorted(self.storage.items()):
-                    print(item)
-                for item in sorted(self.all_nodes):
-                    print(item)
+                debug_request_msg = P.msg_debug_ack(self.general_map, self.all_nodes, self.storage)
+                P.send_msg(debug_request_msg, self.client)
+                print("debug message sent")
+
+            elif msg_type == "empty":
+                pass
 
             else:
                 print("ALERT: unknow message received!")
 
 
         else:
-
             self.sel.unregister(sock)
             sock.close()
 
+            for node in self.all_socks.keys():
+                if self.all_socks[node] == sock:
+                    self.handle_disconect(node)
+                    break
+
+            
+            
+
             #find my new central node (could be me!)
-            if sock in self.all_socks.values() and sock == self.all_socks[self.central_node]:
-                self.central_node = self.find_central_node()
-                print("New central node: ", self.central_node)
+            # if sock in self.all_socks.values() and sock == self.all_socks[self.central_node]:
+            #     self.central_node = self.find_central_node()
+            #     print("New central node: ", self.central_node)
 
-            #remove socket from all_socks
-            if sock in self.all_socks.values():
-                self.remove_node(sock)
-
-
-
+            # #remove socket from all_socks
+            # if sock in self.all_socks.values():
+            #     self.remove_node(sock)
 
 
 
@@ -191,19 +195,20 @@ class Daemon:
         """ Run until canceled """
 
         while not self.canceled:
+            print("...")
             events = self.sel.select()
             for key, mask in events:
                 callback = key.data
                 callback(key.fileobj, mask)   
 
             if self.can_merge and not self.imgs_to_send.empty():
+                print("QUEUE:", self.imgs_to_send)
                 hashkey = self.imgs_to_send.get()
                 self.merge_img(hashkey)
 
-
-
-
-
+            # for sock in self.all_socks.values():
+            #     msg=P.msg_empty()
+            #     P.send_msg(msg, sock)
 
 
 
@@ -230,7 +235,6 @@ class Daemon:
         for n in self.all_socks.keys():
             print(n)
         print("-------------------")
-                      
 
 
 
@@ -275,7 +279,8 @@ class Daemon:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             return s.connect_ex(('localhost', port)) == 0
 
-    
+
+
     def remove_node(self, s):
         node_to_delete = None
         for node, sock in self.all_socks.items():
@@ -287,19 +292,6 @@ class Daemon:
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
     def is_better(self, num_colors1, num_colors2, num_pixeis1, num_pixeis2, num_bytes1, num_bytes2, port1, port2):
         """
         Compare two images and return True if img1 is better than img2.
@@ -307,7 +299,7 @@ class Daemon:
         n_colors=70000
 
         if num_colors1 == num_colors2 and num_pixeis1 == num_pixeis2 and num_bytes1 == num_bytes2:
-            return port1 < port2
+            return port1 <= port2
 
         if (num_colors1 > n_colors) == (num_colors2 > n_colors):
             return num_pixeis1 > num_pixeis2
@@ -317,7 +309,6 @@ class Daemon:
 
         if num_colors2 > n_colors:
             return 0.7*num_pixeis1 > num_pixeis2
-
         
 
 
@@ -330,22 +321,28 @@ class Daemon:
         print("Deleted:", img_path)
 
     
-    def rename_file(self, folder_path, img_name, hashkey):
+
+    def rename_file(self, img_name, hashkey):
         """
         Rename image to hashkey.
         """
-        img_path = os.path.join(folder_path, img_name)
-        # os.rename(img_path, os.path.join(folder_path, hashkey))
+        img_path = os.path.join(self.folder_path, img_name)
+        os.rename(img_path, os.path.join(self.folder_path, hashkey))
         print("Renamed to: ", hashkey)
 
     
+
     def save_file(self, img, hashkey):
         """
         Save image to disk.
         """
+        # print("Saving: ", hashkey)
+        # img.show()
         img_path = os.path.join(self.folder_path, hashkey)
-        img.save(img_path)
+        img.save(img_path, format="PNG")
+        os.rename(img_path, os.path.join(self.folder_path, hashkey))
         print("Saved: ", img_path)
+
 
     
     def starting_img_list(self):
@@ -375,17 +372,18 @@ class Daemon:
             if hash not in self.img_map:
                 print("New image:", img_path)
                 self.img_map[hash]= (num_colors, num_pixeis, num_bytes)
-                self.rename_file(self.folder_path, img_name, hash)
+                self.rename_file(img_name, hash)
 
             elif self.is_better(num_colors, self.img_map[hash][0], num_pixeis, self.img_map[hash][1], num_bytes, self.img_map[hash][2], self.port, 4999):
                 print("Better image found: ", img_path)
                 self.delete_file(hash)
                 self.img_map[hash] = (num_colors, num_pixeis, num_bytes)
-                self.rename_file(self.folder_path, img_name, hash)
+                self.rename_file(img_name, hash)
 
             else:
                 print("Worse image found: ", img_path)
                 self.delete_file(img_name)
+
 
 
     def starting_updates(self):
@@ -409,6 +407,7 @@ class Daemon:
         print("\nStarting updates done\n")
 
 
+
     def add_new_node(self, node, sock):
         """
         Add new node to all_nodes and all_socks.
@@ -420,6 +419,7 @@ class Daemon:
         self.storage[node] = 0
         self.nodes_imgs[node] = []
         print("\nNew node joined: ", node, "\n")
+
 
     
     def update_data(self, update):
@@ -438,7 +438,7 @@ class Daemon:
                 self.nodes_imgs[update[1]] = []
 
         if update[5] not in self.general_map:
-            print("Update with new image: ", update[5])
+            print("Update recived with new image: ", update[5])
             if update[0] in self.all_nodes[1:]:
                 self.storage[update[0]] += update[4]
                 self.nodes_imgs[update[0]].append(update[5])
@@ -448,7 +448,7 @@ class Daemon:
             self.general_map[update[5]] = update[0:5]
 
         elif self.is_better(update[2], self.general_map[update[5]][2], update[3], self.general_map[update[5]][3], update[4], self.general_map[update[5]][4], update[0], self.general_map[update[5]][0]):
-            print("Update with better image: ", update[5])
+            print("Update recived with better image: ", update[5])
             val = self.general_map[update[5]]
             if val[0] in self.all_nodes[1:]:
                 self.storage[val[0]] -= val[4]
@@ -468,7 +468,8 @@ class Daemon:
             self.general_map[update[5]] = update[0:5]
 
         else:
-            print("Update with worse image: ", update[5])
+            print("Update recived with worse image: ", update[5])
+
 
 
     def backup_node(self, hashkey):
@@ -493,6 +494,28 @@ class Daemon:
         return backup_node
 
 
+
+    def save_img(self, img, update):
+        """
+        Save image if is better
+        """
+        if update[5] not in self.general_map:
+            print("Backup new image: ", update[5])
+            self.img_map[update[5]] = update[2:5].copy()
+            self.save_file(img, update[5])
+
+        elif self.is_better(update[2], self.general_map[update[5]][2], update[3], self.general_map[update[5]][3], update[4], self.general_map[update[5]][4], update[0], self.general_map[update[5]][0]):
+            print("Backup better image: ", update[5])
+            if update[5] in self.img_map:
+                self.delete_file(update[5])
+            self.img_map[update[5]] = update[2:5].copy()
+            self.save_file(img, update[5])
+
+        else:
+            print("Backup worse image: ", update[5])
+
+
+
     def send_update(self, hashkey):
         """
         Send update to all nodes
@@ -500,7 +523,6 @@ class Daemon:
         update= self.general_map[hashkey].copy()
         update.append(hashkey)
 
-        
         for sock in self.all_socks.values():
             update_msg = P.msg_update(update)
             P.send_msg(update_msg, sock)
@@ -508,15 +530,21 @@ class Daemon:
         print("Update sent to all nodes")
 
     
+
     def send_img(self, hashkey, node):
         """
         Send image to all nodes.
         """
         img_path = os.path.join(self.folder_path, hashkey)
-        # img = Image.open(img_path)
-        #TODO send image to node
+        img = Image.open(img_path)
+        update= self.general_map[hashkey].copy()
+        update.append(hashkey)
+
+        # msg =  P.msg_image(update, img)
+        # P.send_msg(msg, self.all_socks[node])
     
         print("Image sent to: ", node)
+
 
 
     def backup_and_update(self, hashkey):
@@ -529,37 +557,15 @@ class Daemon:
         self.send_img(hashkey, backup_node)
 
 
-    def merge_my_img(self):
-        """
-        Update self.general_map with self.img_map.
-        """
-        print("\nMerging my images...\n")
-
-        img_map_keys = list(self.img_map.keys())
-
-        # for hashkey in img_map_keys:
-
-        #     # TODO UPDATE DATA EVERYTIME WE GET AN UPDATE    
-
-        #     if hashkey not in self.general_map:
-        #         print("New image:", hashkey)
-        #         self.backup_and_update(hashkey)
-                
-                
-        #     elif self.is_better(self.img_map[hashkey][0], self.general_map[hashkey][2], self.img_map[hashkey][1], self.general_map[hashkey][3], self.img_map[hashkey][2], self.general_map[hashkey][4]):
-        #         print("Better image found: ", hashkey)
-        #         self.backup_and_update(hashkey)
-                
-        #     else:
-        #         print("Worse image found: ", hashkey)
-        #         self.delete_file(hashkey)
-        #         self.img_map.pop(hashkey)
-
 
     def merge_img(self, hashkey):
         """
         Merge img with genereal_map.
         """
+        if len(self.all_nodes) == 1:
+            self.can_merge = True
+            return  
+
         if hashkey not in self.general_map:
                 print("New image:", hashkey)
                 self.backup_and_update(hashkey)
@@ -574,6 +580,7 @@ class Daemon:
             self.img_map.pop(hashkey)
 
     
+    
     def handle_disconect(self, node):
         """
         Re-send backup images if node dies, update self.general_map and self.storage.
@@ -582,23 +589,34 @@ class Daemon:
 
         self.all_nodes.remove(node)
         self.all_socks.pop(node)
+
+        if self.central_node == node:
+            
+            self.central_node= self.my_node
+            for node_ in self.all_nodes:
+                if self.central_node[1] > node_[1]:
+                    self.central_node = node_
+            print("New central node: ", self.central_node)
+
+        
         self.storage.pop(node)
 
         nodes_imgs_copy = self.nodes_imgs.copy()
-
-        for hashkey in nodes_imgs_copy[node]:
-
-            # TODO UPDATE DATA EVERYTIME WE GET AN UPDATE
-
-            if node in self.all_nodes:
-                self.storage[node] = []
-                for hash in self.nodes_imgs[node][self.nodes_imgs[node].index(hashkey):]:
-                    self.storage[node] += self.general_map[hash][2]
-                return
-
-            if hashkey in self.img_map:
-                print("Remaking backup for: ", hashkey)
-                self.backup_and_update(hashkey)
-                self.nodes_imgs[node].remove(hashkey)
-
         self.nodes_imgs.pop(node)
+
+        # for hashkey in nodes_imgs_copy[node]:
+
+        #     # TODO UPDATE DATA EVERYTIME WE GET AN UPDATE
+
+        #     if node in self.all_nodes:
+        #         self.storage[node] = []
+        #         for hash in self.nodes_imgs[node][self.nodes_imgs[node].index(hashkey):]:
+        #             self.storage[node] += self.general_map[hash][2]
+        #         return
+
+            # if hashkey in self.img_map:
+            #     print("Remaking backup for: ", hashkey)
+            #     self.backup_and_update(hashkey)
+                # self.nodes_imgs[node].remove(hashkey)
+
+        # self.nodes_imgs.pop(node)

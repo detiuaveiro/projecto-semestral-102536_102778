@@ -49,6 +49,28 @@ class Client:
                     print(img)
                 print("===================================")
 
+
+            elif msg_type == "debug_ack":
+
+                general_map = msg["general_map"]
+                all_nodes = msg["all_nodes"]
+                storage = msg["storage"]
+
+                print("\nDEBUG\n")
+                for item in sorted(general_map.items()):
+                    print(item)
+                for item in sorted(storage.items()):
+                    print(item)
+                for item in sorted(all_nodes):
+                    print(item)
+
+            elif msg_type == "image":
+                img_hash = msg["hashkey"]
+                img = msg["image"]
+
+                #show image
+                img.show()
+
             else:
                 print("ALERT: unknow message received!")
 
@@ -101,7 +123,7 @@ class Client:
             P.send_msg(request_img_msg, self.s)
         
         else:
-            print("bruh")
+            print("ERROR: command not found!")
 
         
 
