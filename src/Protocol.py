@@ -72,22 +72,16 @@ class Protocol:
 
     @classmethod
     def send_msg(cls, msg, sock: socket):
-        try:
-            msg_size = len(msg).to_bytes(2, "big")
-            msg_to_send = msg_size + msg
-            sock.send(msg_to_send)
-        except Exception as e:
-            print(e)
+        msg_size = len(msg).to_bytes(2, "big")
+        msg_to_send = msg_size + msg
+        sock.send(msg_to_send)
+
 
     @classmethod
     def receive_msg(cls, sock : socket):
-        try:
-            msg_size= int.from_bytes(sock.recv(2), "big")
-            if msg_size != 0:
-                msg = sock.recv(msg_size)
-                return pickle.loads(msg)
-        except Exception as e:
-            print(e)
-        return None
+        msg_size= int.from_bytes(sock.recv(2), "big")
+        if msg_size != 0:
+            msg = sock.recv(msg_size)
+            return pickle.loads(msg)
 
 

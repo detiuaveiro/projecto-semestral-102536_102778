@@ -94,8 +94,9 @@ class Daemon:
                     nodes_msg = P.msg_connect_ack(self.all_nodes[1:], self.general_map)
                     P.send_msg(nodes_msg, conn)
 
+
                 #store the neighbour node
-                self.add_new_node((host, port), sock)
+                self.add_new_node((host, port), conn)
                 
 
                 print("-------------------")
@@ -473,6 +474,9 @@ class Daemon:
         """
         update= self.general_map[hashkey].copy()
         update.append(hashkey)
+
+        print("all socks")
+        print(self.all_socks)
         
         for sock in self.all_socks.values():
             update_msg = P.msg_update(update)
