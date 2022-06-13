@@ -1,8 +1,7 @@
 import socket
+import queue
 import selectors
-import pickle
 from .Protocol import Protocol as P
-
 from PIL import Image
 import imagehash
 import os
@@ -20,17 +19,18 @@ class Daemon:
 
         self.client = None
 
-        self.merge_done=False
+        # self.merge_done=False
+        self.can_merge = False
 
         self.folder_path = folder_path
         self.my_node = (self.host, self.port)
-        self.general_map= {}
-        self.storage= {}
-        self.nodes_imgs= {}
-        self.img_map= {}
-        self.all_nodes= [self.my_node]
-        self.all_socks= {}
-
+        self.general_map = {}
+        self.storage = {}
+        self.nodes_imgs = {}
+        self.img_map = {}
+        self.all_nodes = [self.my_node]
+        self.all_socks = {}
+        self.imgs_to_send = None 
 
         self.sel = selectors.DefaultSelector()
 
@@ -43,6 +43,11 @@ class Daemon:
         print(f"Clients can connect via: {self.host} {self.port}")
 
         self.starting_img_list()
+
+        self.imgs_to_send = queue.Queue(len(self.img_map))
+
+        for hashkey in self.img_map.keys():
+            self.imgs_to_send.put(hashkey)
         
         self.sel.register(self.s, selectors.EVENT_READ, self.verify)
 
@@ -104,9 +109,10 @@ class Daemon:
                     print(n)
                 print("-------------------")
 
-                if not self.merge_done:
-                    self.merge_my_img()
-                    self.merge_done = True
+                # if not self.merge_done:
+                #     self.merge_my_img()
+                #     self.merge_done = True
+                self.can_merge = True
                 
 
             if node_type == "client":
@@ -138,8 +144,9 @@ class Daemon:
                 self.starting_updates()
                 print(self.all_nodes)
                 print(self.storage)
-                self.merge_my_img()
-                self.merge_done = True
+                # self.merge_my_img()
+                # self.merge_done = True
+                self.can_merge = True
 
             elif msg_type == "request_list":
                 request_msg = P.msg_image_list(list(self.img_map.keys()))
@@ -178,6 +185,8 @@ class Daemon:
 
 
 
+
+
     def run(self):
         """ Run until canceled """
 
@@ -186,6 +195,16 @@ class Daemon:
             for key, mask in events:
                 callback = key.data
                 callback(key.fileobj, mask)   
+
+            if self.can_merge and not self.imgs_to_send.empty():
+                hashkey = self.imgs_to_send.get()
+                self.merge_img(hashkey)
+
+
+
+
+
+
 
 
     def connect_to_nodes(self, nodes):
@@ -281,11 +300,15 @@ class Daemon:
 
 
 
-    def is_better(self, num_colors1, num_colors2, num_pixeis1, num_pixeis2, num_bytes1, num_bytes2):
+    def is_better(self, num_colors1, num_colors2, num_pixeis1, num_pixeis2, num_bytes1, num_bytes2, port1, port2):
         """
         Compare two images and return True if img1 is better than img2.
         """
         n_colors=70000
+
+        if num_colors1 == num_colors2 and num_pixeis1 == num_pixeis2 and num_bytes1 == num_bytes2:
+            return port1 < port2
+
         if (num_colors1 > n_colors) == (num_colors2 > n_colors):
             return num_pixeis1 > num_pixeis2
         
@@ -294,6 +317,8 @@ class Daemon:
 
         if num_colors2 > n_colors:
             return 0.7*num_pixeis1 > num_pixeis2
+
+        
 
 
     def delete_file(self, hashkey):
@@ -352,7 +377,7 @@ class Daemon:
                 self.img_map[hash]= (num_colors, num_pixeis, num_bytes)
                 self.rename_file(self.folder_path, img_name, hash)
 
-            elif self.is_better(num_colors, self.img_map[hash][0], num_pixeis, self.img_map[hash][1], num_bytes, self.img_map[hash][2]):
+            elif self.is_better(num_colors, self.img_map[hash][0], num_pixeis, self.img_map[hash][1], num_bytes, self.img_map[hash][2], self.port, 4999):
                 print("Better image found: ", img_path)
                 self.delete_file(hash)
                 self.img_map[hash] = (num_colors, num_pixeis, num_bytes)
@@ -422,7 +447,7 @@ class Daemon:
                 self.nodes_imgs[update[1]].append(update[5])
             self.general_map[update[5]] = update[0:5]
 
-        elif self.is_better(update[2], self.general_map[update[5]][2], update[3], self.general_map[update[5]][3], update[4], self.general_map[update[5]][4]):
+        elif self.is_better(update[2], self.general_map[update[5]][2], update[3], self.general_map[update[5]][3], update[4], self.general_map[update[5]][4], update[0], self.general_map[update[5]][0]):
             print("Update with better image: ", update[5])
             val = self.general_map[update[5]]
             if val[0] in self.all_nodes[1:]:
@@ -475,8 +500,6 @@ class Daemon:
         update= self.general_map[hashkey].copy()
         update.append(hashkey)
 
-        print("all socks")
-        print(self.all_socks)
         
         for sock in self.all_socks.values():
             update_msg = P.msg_update(update)
@@ -514,23 +537,41 @@ class Daemon:
 
         img_map_keys = list(self.img_map.keys())
 
-        for hashkey in img_map_keys:
+        # for hashkey in img_map_keys:
 
-            # TODO UPDATE DATA EVERYTIME WE GET AN UPDATE    
+        #     # TODO UPDATE DATA EVERYTIME WE GET AN UPDATE    
 
-            if hashkey not in self.general_map:
+        #     if hashkey not in self.general_map:
+        #         print("New image:", hashkey)
+        #         self.backup_and_update(hashkey)
+                
+                
+        #     elif self.is_better(self.img_map[hashkey][0], self.general_map[hashkey][2], self.img_map[hashkey][1], self.general_map[hashkey][3], self.img_map[hashkey][2], self.general_map[hashkey][4]):
+        #         print("Better image found: ", hashkey)
+        #         self.backup_and_update(hashkey)
+                
+        #     else:
+        #         print("Worse image found: ", hashkey)
+        #         self.delete_file(hashkey)
+        #         self.img_map.pop(hashkey)
+
+
+    def merge_img(self, hashkey):
+        """
+        Merge img with genereal_map.
+        """
+        if hashkey not in self.general_map:
                 print("New image:", hashkey)
                 self.backup_and_update(hashkey)
-                
-                
-            elif self.is_better(self.img_map[hashkey][0], self.general_map[hashkey][2], self.img_map[hashkey][1], self.general_map[hashkey][3], self.img_map[hashkey][2], self.general_map[hashkey][4]):
-                print("Better image found: ", hashkey)
-                self.backup_and_update(hashkey)
-                
-            else:
-                print("Worse image found: ", hashkey)
-                self.delete_file(hashkey)
-                self.img_map.pop(hashkey)
+                      
+        elif self.is_better(self.img_map[hashkey][0], self.general_map[hashkey][2], self.img_map[hashkey][1], self.general_map[hashkey][3], self.img_map[hashkey][2], self.general_map[hashkey][4], self.port, 4999):
+            print("Better image found: ", hashkey)
+            self.backup_and_update(hashkey)
+            
+        else:
+            print("Worse image found: ", hashkey)
+            self.delete_file(hashkey)
+            self.img_map.pop(hashkey)
 
     
     def handle_disconect(self, node):

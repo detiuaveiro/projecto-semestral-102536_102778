@@ -94,6 +94,11 @@ class Client:
             P.send_msg(request_debug, self.s)
             
             print("Debug request message has been sent!")
+
+
+        elif len(client_input.split()) == 1 and len(client_input) == 16:   #request image
+            request_img_msg = P.msg_request_image(client_input)
+            P.send_msg(request_img_msg, self.s)
         
         else:
             print("bruh")
