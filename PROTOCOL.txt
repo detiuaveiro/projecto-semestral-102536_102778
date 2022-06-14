@@ -1,5 +1,5 @@
 # self.img_map = 
-# { hashkey: (img_name, num_colors, num_pixeis, num_bytes) } 
+# { hashkey: (num_colors, num_pixeis, num_bytes) } 
 # local
 
 # self.my_node = (address, port)
@@ -16,9 +16,9 @@
 # { hashkey: [ (address1, port1), (address2, port2), num_colors, num_pixeis, num_bytes ] }
 # SYNCRONIZED
 
-# update_lst = 
-# { hashkey: [ (address1, port1), (address2, port2), num_colors, num_pixeis, num_bytes ] } 
-# changes to send to all nodes
+# update = 
+# [ (address1, port1), (address2, port2), num_colors, num_pixeis, num_bytes, hashkey ]
+# change to send to all nodes
 
 # self.storage = 
 # { (address, port): occupied_space } 
