@@ -91,10 +91,9 @@ class Protocol:
     def receive_msg(cls, sock : socket):
         msg_size= int.from_bytes(sock.recv(8), "big")
         if msg_size != 0:
-            # msg=b""
-            # while len(msg) < msg_size:
-            #     msg += sock.recv(msg_size - len(msg))
-            msg = sock.recv(msg_size)
+            msg=b""
+            while len(msg) < msg_size:
+                msg += sock.recv(msg_size - len(msg))
             return pickle.loads(msg)
             
 
