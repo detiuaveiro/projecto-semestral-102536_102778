@@ -161,8 +161,11 @@ class Daemon:
                 P.send_msg(debug_request_msg, self.client)
                 print("debug message sent")
 
-            elif msg_type == "empty":
-                pass
+            elif msg_type == "request":
+                self.client_request(msg["hashkey"], sock)
+
+            elif msg_type == "request_ack":
+                P.send_msg(msg, self.client)
 
             else:
                 print("ALERT: unknow message received!")
@@ -195,14 +198,12 @@ class Daemon:
         """ Run until canceled """
 
         while not self.canceled:
-            print("...")
-            events = self.sel.select()
+            events = self.sel.select(0.1) 
             for key, mask in events:
                 callback = key.data
                 callback(key.fileobj, mask)   
 
             if self.can_merge and not self.imgs_to_send.empty():
-                print("QUEUE:", self.imgs_to_send)
                 hashkey = self.imgs_to_send.get()
                 self.merge_img(hashkey)
 
@@ -593,7 +594,7 @@ class Daemon:
         if self.central_node == node:
             
             self.central_node= self.my_node
-            for node_ in self.all_nodes:
+            for node_ in self.all_nodes[1:]:
                 if self.central_node[1] > node_[1]:
                     self.central_node = node_
             print("New central node: ", self.central_node)
@@ -620,3 +621,24 @@ class Daemon:
                 # self.nodes_imgs[node].remove(hashkey)
 
         # self.nodes_imgs.pop(node)
+
+
+    def client_request(self, hashkey, conn):
+        """
+        Send image to client.
+        """
+        if hashkey not in self.general_map:
+            msg = P.msg_request_image_ack(None)
+            P.send_msg(msg, conn)
+            return 
+
+        if hashkey in self.img_map:
+            msg = P.msg_request_image_ack(self.img_map[hashkey])
+            P.send_msg(msg, conn)
+            return
+            
+        #TODO request image to self.all_socks[self.general_map[hashkey][0]]
+        msg = P.msg_request_image(hashkey)
+        P.send_msg(msg, self.all_socks[self.general_map[hashkey][0]])
+        
+

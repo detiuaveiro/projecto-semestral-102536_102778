@@ -4,6 +4,7 @@ import sys
 import socket
 import selectors
 from .Protocol import Protocol as P
+from PIL import Image
 
 class Client:
     
@@ -70,6 +71,12 @@ class Client:
 
                 #show image
                 img.show()
+
+            elif msg_type == "request_ack":
+                img = msg["image"]
+
+                if img:
+                    img.show()
 
             else:
                 print("ALERT: unknow message received!")

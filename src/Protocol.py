@@ -45,6 +45,12 @@ class Protocol:
 
 
     @classmethod
+    def msg_request_image_ack(cls, image):
+        msg = pickle.dumps({"type": "request_ack", "image": image})
+        return msg
+
+
+    @classmethod
     def msg_image(cls, update, image):
         msg = pickle.dumps({"type": "image_backup", "update": update, "image": image})
         return msg
@@ -68,11 +74,6 @@ class Protocol:
         msg = pickle.dumps({"type": "debug_ack", "general_map": general_map, "all_nodes": all_nodes, "storage": storage})
         return msg
 
-
-    @classmethod
-    def msg_empty(cls):
-        msg = pickle.dumps({"type": "empty"})
-        return msg
 
 
 
