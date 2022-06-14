@@ -47,6 +47,9 @@ class Daemon:
 
         self.imgs_to_send = queue.Queue(len(self.img_map))
 
+        self.imgs_to_backup = []
+        self.need_backup= False
+
         for hashkey in self.img_map.keys():
             self.imgs_to_send.put(hashkey)
         
@@ -165,6 +168,7 @@ class Daemon:
                 self.client_request(msg["hashkey"], sock)
 
             elif msg_type == "request_ack":
+                msg= P.msg_request_image_ack(msg["image"])
                 P.send_msg(msg, self.client)
 
             else:
@@ -206,6 +210,14 @@ class Daemon:
             if self.can_merge and not self.imgs_to_send.empty():
                 hashkey = self.imgs_to_send.get()
                 self.merge_img(hashkey)
+
+            if self.need_backup and len(self.imgs_to_backup) > 0 and len(self.all_nodes) > 1:
+                hashkey= self.imgs_to_backup.pop()
+                print("Remaking backup for: ", hashkey)
+                self.backup_and_update(hashkey)
+                if len(self.imgs_to_backup) == 0:
+                    self.need_backup = False
+
 
             # for sock in self.all_socks.values():
             #     msg=P.msg_empty()
@@ -541,8 +553,8 @@ class Daemon:
         update= self.general_map[hashkey].copy()
         update.append(hashkey)
 
-        # msg =  P.msg_image(update, img)
-        # P.send_msg(msg, self.all_socks[node])
+        msg =  P.msg_image(update, img)
+        P.send_msg(msg, self.all_socks[node])
     
         print("Image sent to: ", node)
 
@@ -563,8 +575,9 @@ class Daemon:
         """
         Merge img with genereal_map.
         """
+        
         if len(self.all_nodes) == 1:
-            self.can_merge = True
+            self.can_merge = False
             return  
 
         if hashkey not in self.general_map:
@@ -588,7 +601,8 @@ class Daemon:
         """
         print("\nNode disconnected: ", node, "\n")
 
-        self.all_nodes.remove(node)
+        if node in self.all_nodes[1:]:
+            self.all_nodes.remove(node)
         self.all_socks.pop(node)
 
         if self.central_node == node:
@@ -598,14 +612,19 @@ class Daemon:
                 if self.central_node[1] > node_[1]:
                     self.central_node = node_
             print("New central node: ", self.central_node)
-
         
         self.storage.pop(node)
 
         nodes_imgs_copy = self.nodes_imgs.copy()
         self.nodes_imgs.pop(node)
+        
 
-        # for hashkey in nodes_imgs_copy[node]:
+        for hashkey in nodes_imgs_copy[node]:
+            if hashkey in self.img_map:
+                self.imgs_to_backup.append(hashkey)
+        
+        if len(self.imgs_to_backup) > 0:
+            self.need_backup = True
 
         #     # TODO UPDATE DATA EVERYTIME WE GET AN UPDATE
 
@@ -618,26 +637,30 @@ class Daemon:
             # if hashkey in self.img_map:
             #     print("Remaking backup for: ", hashkey)
             #     self.backup_and_update(hashkey)
-                # self.nodes_imgs[node].remove(hashkey)
 
-        # self.nodes_imgs.pop(node)
+        
 
 
     def client_request(self, hashkey, conn):
         """
         Send image to client.
         """
+        print("Image requested: ", hashkey)
+
+        if hashkey in self.img_map:
+            print("Image found: ", hashkey)
+            msg = P.msg_request_image_ack(Image.open(os.path.join(self.folder_path, hashkey)))
+            P.send_msg(msg, conn)
+            return
+
         if hashkey not in self.general_map:
+            print("Image not found: ", hashkey)
             msg = P.msg_request_image_ack(None)
             P.send_msg(msg, conn)
             return 
-
-        if hashkey in self.img_map:
-            msg = P.msg_request_image_ack(self.img_map[hashkey])
-            P.send_msg(msg, conn)
-            return
             
         #TODO request image to self.all_socks[self.general_map[hashkey][0]]
+        print("Requesting image: ", hashkey)
         msg = P.msg_request_image(hashkey)
         P.send_msg(msg, self.all_socks[self.general_map[hashkey][0]])
         

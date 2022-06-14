@@ -76,7 +76,10 @@ class Client:
                 img = msg["image"]
 
                 if img:
+                    print("img recv")
                     img.show()
+                else:
+                    print("Something went wrong")
 
             else:
                 print("ALERT: unknow message received!")
@@ -86,15 +89,8 @@ class Client:
 
             self.sel.unregister(sock)
             sock.close()
+            print("Connection closed")
 
-            #find my new central node (could be me!)
-            if sock in self.all_socks.values() and sock == self.all_socks[self.central_node]:
-                self.central_node = self.find_central_node()
-                print("New central node: ", self.central_node)
-
-            #remove socket from all_socks
-            if sock in self.all_socks.values():
-                self.remove_node(sock)
 
 
 
