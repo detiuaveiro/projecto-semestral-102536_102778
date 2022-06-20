@@ -6,6 +6,7 @@ from .Protocol import Protocol as P
 from PIL import Image
 import imagehash
 import os
+import time
 
 
 class Daemon:
@@ -150,7 +151,7 @@ class Daemon:
                 self.can_merge = True
 
             elif msg_type == "request_list":
-                request_msg = P.msg_image_list(list(self.img_map.keys()))
+                request_msg = P.msg_image_list(list(self.general_map.keys()))
                 P.send_msg(request_msg, sock)
 
             elif msg_type == "update":
@@ -200,28 +201,36 @@ class Daemon:
 
     def run(self):
         """ Run until canceled """
+        
 
         while not self.canceled:
-            events = self.sel.select(0.1) 
-            for key, mask in events:
-                callback = key.data
-                callback(key.fileobj, mask)   
+            for i in range (len(self.all_nodes) + 1):
+                events = self.sel.select(0) 
+                for key, mask in events:
+                    callback = key.data
+                    callback(key.fileobj, mask)   
 
-            if self.can_merge and not self.imgs_to_send.empty():
-                hashkey = self.imgs_to_send.get()
-                self.merge_img(hashkey)
-
-            if self.need_backup and len(self.imgs_to_backup) > 0 and len(self.all_nodes) > 1:
-                hashkey= self.imgs_to_backup.pop()
-                print("Remaking backup for: ", hashkey)
-                self.backup_and_update(hashkey)
-                if len(self.imgs_to_backup) == 0:
-                    self.need_backup = False
+            self.stuff_to_do()
 
 
             # for sock in self.all_socks.values():
             #     msg=P.msg_empty()
             #     P.send_msg(msg, sock)
+
+
+    def stuff_to_do(self):
+        """ Check if there is stuff to do """
+
+        if self.can_merge and not self.imgs_to_send.empty():
+                hashkey = self.imgs_to_send.get()
+                self.merge_img(hashkey)
+
+        if self.need_backup and len(self.imgs_to_backup) > 0 and len(self.all_nodes) > 1:
+            hashkey= self.imgs_to_backup.pop()
+            print("Remaking backup for: ", hashkey)
+            self.backup_and_update(hashkey)
+            if len(self.imgs_to_backup) == 0:
+                self.need_backup = False
 
 
 

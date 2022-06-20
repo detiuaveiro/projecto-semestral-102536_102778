@@ -84,7 +84,10 @@ class Protocol:
     def send_msg(cls, msg, sock: socket):
         msg_size = len(msg).to_bytes(8, "big")
         msg_to_send = msg_size + msg
-        sock.send(msg_to_send)
+        while len(msg_to_send) > 0:
+            sent = sock.send(msg_to_send)
+            msg_to_send = msg_to_send[sent:]
+        # sock.send(msg_to_send)
 
 
     @classmethod
