@@ -320,8 +320,14 @@ class Daemon:
         """
         n_colors=70000
 
+        # if num_colors1 == num_colors2 and num_pixeis1 == num_pixeis2 and num_bytes1 == num_bytes2:
+        #     return port1 < port2
+
+        # if  num_colors1 == num_colors2 and num_pixeis1 == num_pixeis2:
+        #     return num_bytes1 < num_bytes2
+
         if num_colors1 == num_colors2 and num_pixeis1 == num_pixeis2:
-            return port1 <= port2
+            return port1 < port2
 
         if (num_colors1 > n_colors) == (num_colors2 > n_colors):
             return num_pixeis1 > num_pixeis2
@@ -504,7 +510,7 @@ class Daemon:
             if val[0] in self.all_nodes[1:]:
                 self.storage[val[0]] -= val[4]
                 self.nodes_imgs[val[0]].remove(hashkey)
-            if val[0] in self.all_nodes[1:]:
+            if val[1] in self.all_nodes[1:]:
                 self.storage[val[1]] -= val[4]
                 self.nodes_imgs[val[1]].remove(hashkey)
 
