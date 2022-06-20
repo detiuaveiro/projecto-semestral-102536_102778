@@ -1,12 +1,15 @@
 import fcntl
 import os
+import re
 import sys
 import socket
 import selectors
 from .Protocol import Protocol as P
 from PIL import Image
+import signal
 
 class Client:
+
     
     def __init__(self, daemon_host, daemon_port):
         """Initializes client."""
@@ -17,6 +20,7 @@ class Client:
         self.s_info = None
         self.node_type = "client"
 
+        signal.signal(signal.SIGINT, self.handler)
         orig_fl = fcntl.fcntl(sys.stdin, fcntl.F_GETFL)
         fcntl.fcntl(sys.stdin, fcntl.F_SETFL, orig_fl | os.O_NONBLOCK)
 
@@ -45,10 +49,10 @@ class Client:
             if msg_type == "image_list":
                 img_lst = msg["image_list"]
                 
-                print("\n======= Images on network =======")
+                print("\n======= Images on network =======\n")
                 for img in img_lst:
-                    print(img)
-                print("===================================")
+                    print("\t", img)
+                print("\n===================================")
 
 
             elif msg_type == "debug_ack":
@@ -76,7 +80,6 @@ class Client:
                 img = msg["image"]
 
                 if img:
-                    print("img recv")
                     img.show()
                 else:
                     print("Something went wrong")
@@ -95,18 +98,14 @@ class Client:
 
 
     def got_keyboard_data(self, stdin, mask):
-        print()
-        print(">> ", end="", flush=True)
-        
+
         client_input = stdin.read().strip()
         
-        #print("User input: ", client_input)
-
         if len(client_input) == 0:
             return
 
-        elif client_input == "log out":
-            self.canceled = False
+        elif client_input == "exit":
+            self.canceled = True
         
         elif client_input == "list":
             request_msg = P.msg_request_image_list()
@@ -132,8 +131,20 @@ class Client:
 
     def run(self):
         """Run client"""
+        
+        print("\n______________ COMMANDS ______________\n")
+        print("       list   list images on network")
+        print(" photo hash   show photo")
+        print("      debug   show network info")
+        print("       exit   shut down client")
+        print("______________________________________\n")
 
         while not self.canceled:
+
+
+            sys.stdout.write('>> ' )
+            sys.stdout.flush()
+
             for key, mask in self.sel.select():
                 callback = key.data
                 callback(key.fileobj, mask)
@@ -143,3 +154,8 @@ class Client:
         self.sel.unregister(sys.stdin)
         self.sel.close()
         print("Connection closed.")
+
+
+    def handler(self, signum, frame):
+        print("\nALERT: Client process is going to shut down\nPress enter to exit", flush=True)
+        self.canceled = True
