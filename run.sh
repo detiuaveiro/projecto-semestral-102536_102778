@@ -9,13 +9,17 @@ function main()
 
     for ((i=0; i<num_nodes; i++)); do
     {
-        daemon="python3 daemon.py --folder ../node$i"
-        gnome-terminal --working-directory=$dir --command="$daemon" 
+        sleep 0.2
+
+        daemon="python3 daemon.py --folder ../nodes/node$i"
+        konsole --new-tab --noclose --workdir $dir -e "$daemon" &
 
         echo "Deamon $i started"
+
+        sleep 0.2
     
         client="python3 client.py --host localhost --port $((5000+i))"
-        gnome-terminal --working-directory=$dir --command="$client" 
+        konsole --new-tab --noclose --workdir $dir -e "$client" &
 
         echo "Client $i started"
     }

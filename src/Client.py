@@ -95,8 +95,8 @@ class Client:
 
 
     def got_keyboard_data(self, stdin, mask):
-        sys.stdout.write(">> ")
-        sys.stdout.flush()
+        print()
+        print(">> ", end="", flush=True)
         
         client_input = stdin.read().strip()
         

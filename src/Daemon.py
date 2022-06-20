@@ -151,7 +151,11 @@ class Daemon:
                 self.can_merge = True
 
             elif msg_type == "request_list":
-                request_msg = P.msg_image_list(list(self.general_map.keys()))
+                if len(self.general_map) == 0:
+                    request_msg = P.msg_image_list(list(self.img_map.keys()))
+                else:
+                    request_msg = P.msg_image_list(list(self.general_map.keys()))
+
                 P.send_msg(request_msg, sock)
 
             elif msg_type == "update":
