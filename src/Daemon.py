@@ -205,21 +205,17 @@ class Daemon:
 
     def run(self):
         """ Run until canceled """
-        
 
         while not self.canceled:
-            for i in range (len(self.all_nodes) + 1):
-                events = self.sel.select(0) 
-                for key, mask in events:
-                    callback = key.data
-                    callback(key.fileobj, mask)   
 
-            self.stuff_to_do()
+            events = self.sel.select(0) 
+            for key, mask in events:
+                callback = key.data
+                callback(key.fileobj, mask)
 
+            if len(events) == 0:
+                self.stuff_to_do()
 
-            # for sock in self.all_socks.values():
-            #     msg=P.msg_empty()
-            #     P.send_msg(msg, sock)
 
 
     def stuff_to_do(self):
@@ -324,7 +320,7 @@ class Daemon:
         """
         n_colors=70000
 
-        if num_colors1 == num_colors2 and num_pixeis1 == num_pixeis2 and num_bytes1 == num_bytes2:
+        if num_colors1 == num_colors2 and num_pixeis1 == num_pixeis2:
             return port1 <= port2
 
         if (num_colors1 > n_colors) == (num_colors2 > n_colors):

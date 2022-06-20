@@ -9,14 +9,13 @@ function main()
 
     for ((i=0; i<num_nodes; i++)); do
     {
-        sleep 0.2
 
         daemon="python3 daemon.py --folder ../nodes/node$i"
         konsole --new-tab --noclose --workdir $dir -e "$daemon" &
 
         echo "Deamon $i started"
 
-        sleep 0.2
+        sleep 0.5
     
         client="python3 client.py --host localhost --port $((5000+i))"
         konsole --new-tab --noclose --workdir $dir -e "$client" &
