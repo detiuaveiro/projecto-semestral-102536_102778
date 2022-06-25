@@ -66,10 +66,11 @@ class Client:
                 # for item in sorted(general_map.items()):
                 #     print(item)
                 print("General map size:", len(general_map))
-                for item in sorted(storage.items()):
-                    print(item)
-                for item in sorted(all_nodes):
-                    print(item)
+                # for item in sorted(storage.items()):
+                #     print(item)
+                # for item in sorted(all_nodes):
+                #     print(item)
+                print("Storage occupied (bytes):")
                 for item in sorted(new_storage.items()):
                     print(item)
 

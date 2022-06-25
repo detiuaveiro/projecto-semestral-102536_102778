@@ -14,7 +14,7 @@ class Daemon:
     def __init__(self, folder_path):
         self.canceled = False
         self.node_type = "daemon"
-        
+        self.central_node = self.find_central_node()
         self.host, self.port = self.get_addr()  # reveiving socket (endpoint)
 
         self.client = None
@@ -43,8 +43,6 @@ class Daemon:
         print(f"Clients can connect via: {self.host} {self.port}")
 
         self.starting_img_list()
-
-        self.central_node = self.find_central_node()
 
         self.imgs_to_send = queue.Queue(len(self.img_map))
 
@@ -113,7 +111,7 @@ class Daemon:
                 # if not self.merge_done:
                 #     self.merge_my_img()
                 #     self.merge_done = True
-                self.can_merge = True
+                # self.can_merge = True
                 
 
             if node_type == "client":
@@ -146,15 +144,17 @@ class Daemon:
                 P.send_msg(msg, self.all_socks[self.central_node])
 
             elif msg_type == "general_map":
-                general_map_received = msg["general_map"]
-                general_map_received.update(self.general_map)
-                self.general_map = general_map_received.copy()
+                # general_map_received = msg["general_map"]
+                # general_map_received.update(self.general_map)
+                # self.general_map = general_map_received.copy()
+                self.general_map.update(msg["general_map"])
                 self.starting_updates()
                 self.can_merge = True
 
             elif msg_type == "req_general_map":
                 msg= P.msg_general_map(self.general_map)
                 P.send_msg(msg, sock)
+                self.can_merge = True
                 
 
             elif msg_type == "request_list":

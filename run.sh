@@ -25,7 +25,7 @@ function main()
 
         echo "Client $i started"
 
-        # sleep 5
+        sleep 0.5
     }
     done
 }
