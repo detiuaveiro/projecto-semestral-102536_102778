@@ -1,5 +1,4 @@
 import socket
-import queue
 import selectors
 from .Protocol import Protocol as P
 from PIL import Image
@@ -9,204 +8,43 @@ import os
 
 class Daemon:
     """Daemon -> Node"""
-
-
     def __init__(self, folder_path):
-        self.canceled = False
-        self.node_type = "daemon"
-        self.central_node = self.find_central_node()
-        self.host, self.port = self.get_addr()  # reveiving socket (endpoint)
-
-        self.client = None
-
-        # self.merge_done=False
-        self.can_merge = False
+        """ Init """
 
         self.folder_path = folder_path
-        self.my_node = (self.host, self.port)
+        self.can_merge = False
+        self.canceled = False
+        self.node_type = "daemon"
+        self.client = None
+
         self.general_map = {}
         self.storage = {}
         self.nodes_imgs = {}
-        self.img_map = {}
-        self.all_nodes = [self.my_node]
+        self.my_imgs = {}
+        self.all_nodes = []
         self.all_socks = {}
-        self.imgs_to_send = None 
+
+        self.host, self.port = self.get_addr()
+        self.my_node = (self.host, self.port)
 
         self.sel = selectors.DefaultSelector()
-
-        # receiving socket
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.s.bind((self.host, self.port))
         self.s.listen()
-
         print(f"Clients can connect via: {self.host} {self.port}")
 
+
         self.starting_img_list()
+        self.imgs_to_send = list(self.my_imgs.keys())
 
-        self.imgs_to_send = queue.Queue(len(self.img_map))
 
-        self.imgs_to_backup = []
-        self.need_backup= False
-
-        for hashkey in self.img_map.keys():
-            self.imgs_to_send.put(hashkey)
-        
         self.sel.register(self.s, selectors.EVENT_READ, self.verify)
 
+        self.central_node = self.find_central_node()
 
-        # connect to central daemon
         if self.port != self.central_node[1]:  #i'm not the central node
-
-            self.all_socks[self.central_node] = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.all_socks[self.central_node].connect(self.central_node)
-            self.all_nodes.append(self.central_node)
-
-            #connect to central node
-            connect_msg = P.msg_first_connect(self.node_type, self.host, self.port)
-            P.send_msg(connect_msg, self.all_socks[self.central_node])
-
-
-            #register daemon socket
-            self.sel.register(self.all_socks[self.central_node], selectors.EVENT_READ, self.read)
-
-
-            print("-------------------")
-            for n in self.all_socks.keys():
-                print(n)
-            print("-------------------")
-
-    
-
-    def verify(self, sock, mask):
-        conn, addr = sock.accept()
-        connect_msg = P.receive_msg(conn)
-
-        if connect_msg:
-            print("msg recv: ", connect_msg)
-            host = connect_msg["recv_host"]
-            port = connect_msg["recv_port"]
-            node_type = connect_msg["node_type"]
-            connect_type = connect_msg["type"]
-
-            if node_type == "daemon":
-                print("DEAMON WANTS TO CONNECT")
-
-                if connect_type == "first_connect":
-
-                    # send to my neighbour all the nodes i know
-                    nodes_msg = P.msg_connect_ack(self.all_nodes[1:])
-                    P.send_msg(nodes_msg, conn)
-
-
-                #store the neighbour node
-                self.add_new_node((host, port), conn)
-                
-
-                print("-------------------")
-                for n in self.all_socks.keys():
-                    print(n)
-                print("-------------------")
-
-                # if not self.merge_done:
-                #     self.merge_my_img()
-                #     self.merge_done = True
-                # self.can_merge = True
-                
-
-            if node_type == "client":
-                print("CLIENT WANTS TO CONNECT")
-
-                #store the node client
-                self.client = conn
-
-            
-            # print(self.all_socks)
-            self.sel.register(conn, selectors.EVENT_READ, self.read)
-
-
-
-    def read(self, sock :socket, mask):
-        
-        msg = P.receive_msg(sock)
-
-        #print("Msg type: ", msg["type"])
-
-        if msg:
-            msg_type = msg["type"]
-
-            if msg_type == "connect_ack":
-                nodes = msg["nodes"]  # array with neighbour nodes
-                self.connect_to_nodes(nodes)
-                self.all_nodes += nodes
-
-                msg = P.req_general_map()
-                P.send_msg(msg, self.all_socks[self.central_node])
-
-            elif msg_type == "general_map":
-                # general_map_received = msg["general_map"]
-                # general_map_received.update(self.general_map)
-                # self.general_map = general_map_received.copy()
-                self.general_map.update(msg["general_map"])
-                self.starting_updates()
-                self.can_merge = True
-
-            elif msg_type == "req_general_map":
-                msg= P.msg_general_map(self.general_map)
-                P.send_msg(msg, sock)
-                self.can_merge = True
-                
-
-            elif msg_type == "request_list":
-                if len(self.general_map) == 0:
-                    request_msg = P.msg_image_list(list(self.img_map.keys()))
-                else:
-                    request_msg = P.msg_image_list(list(self.general_map.keys()))
-
-                P.send_msg(request_msg, sock)
-
-            elif msg_type == "update":
-                self.update_data(msg["update"])
-
-            elif msg_type == "image_backup":
-                self.save_img(msg["image"], msg["update"])
-
-            elif msg_type == "debug":
-                debug_request_msg = P.msg_debug_ack(self.general_map, self.all_nodes, self.storage, self.get_storage())
-                P.send_msg(debug_request_msg, self.client)
-                print("debug message sent")
-
-            elif msg_type == "request":
-                self.client_request(msg["hashkey"], sock)
-
-            elif msg_type == "request_ack":
-                msg= P.msg_request_image_ack(msg["image"])
-                P.send_msg(msg, self.client)
-
-            else:
-                print("ALERT: unknow message received!")
-
-
-        else:
-            self.sel.unregister(sock)
-            sock.close()
-
-            for node in self.all_socks.keys():
-                if self.all_socks[node] == sock:
-                    self.handle_disconect(node)
-                    break
-
-            
-            
-
-            #find my new central node (could be me!)
-            # if sock in self.all_socks.values() and sock == self.all_socks[self.central_node]:
-            #     self.central_node = self.find_central_node()
-            #     print("New central node: ", self.central_node)
-
-            # #remove socket from all_socks
-            # if sock in self.all_socks.values():
-            #     self.remove_node(sock)
+            self.join_mesh()
 
 
 
@@ -220,6 +58,9 @@ class Daemon:
                 callback = key.data
                 callback(key.fileobj, mask)
 
+            if len(self.all_nodes) == 0:
+                self.can_merge = False
+
             if len(events) == 0:
                 self.stuff_to_do()
 
@@ -228,57 +69,30 @@ class Daemon:
     def stuff_to_do(self):
         """ Check if there is stuff to do """
 
-        if self.can_merge and not self.imgs_to_send.empty():
-                hashkey = self.imgs_to_send.get()
-                self.merge_img(hashkey)
-
-        if self.need_backup and len(self.imgs_to_backup) > 0 and len(self.all_nodes) > 1:
-            hashkey= self.imgs_to_backup.pop()
-            print("Remaking backup for: ", hashkey)
-            self.backup_and_update(hashkey)
-            if len(self.imgs_to_backup) == 0:
-                self.need_backup = False
-
-
-
-    def connect_to_nodes(self, nodes):
-        """ connect to other nodes """
-
-        for n in nodes:
-            if n not in self.all_socks and n != self.my_node:
-
-                self.all_socks[n] = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                print("Connecting to ", n)
-                self.all_socks[n].connect(n)
-
-                #connect to node
-                connect_msg = P.msg_connect(self.node_type, self.host, self.port)
-                print("Connect to daemon port: ", n[1])
-                P.send_msg(connect_msg, self.all_socks[n])
-
-                #register daemon socket
-                self.sel.register(self.all_socks[n], selectors.EVENT_READ, self.read)          
-
+        if self.can_merge and len(self.imgs_to_send) > 0:
+            self.merge_img(self.imgs_to_send.pop(0))
         
-        print("-------------------")
-        for n in self.all_socks.keys():
-            print(n)
-        print("-------------------")
 
 
 
-    def get_addr(self):
-        """ Get a valid addr to use """
+    def join_mesh(self):
+        """
+        Join the mesh.
+        """
+        self.all_socks[self.central_node] = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.all_socks[self.central_node].connect(self.central_node)
+        self.all_nodes.append(self.central_node)
 
-        host = "localhost"
-        port = 5000   #start port
+        #connect to central node
+        connect_msg = P.msg_first_connect(self.node_type, self.host, self.port)
+        P.send_msg(connect_msg, self.all_socks[self.central_node])
 
-        while self.is_port_in_use(port):
-            port += 1
+        #register daemon socket
+        self.sel.register(self.all_socks[self.central_node], selectors.EVENT_READ, self.read)
 
-        return (host, port)
+        print("Connected to central node")
 
-    
+
 
     def find_central_node(self):
         """ Return the addr of an existing daemon node """
@@ -302,40 +116,24 @@ class Daemon:
 
 
 
+    def get_addr(self):
+        """ Get a valid addr to use """
+
+        host = "localhost"
+        port = 5000   #start port
+
+        while self.is_port_in_use(port):
+            port += 1
+
+        return (host, port)
+
+
+
     def is_port_in_use(self, port: int) -> bool:
         """ Check if port is in use """       
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             return s.connect_ex(('localhost', port)) == 0
-
-
-
-    def remove_node(self, s):
-        node_to_delete = None
-        for node, sock in self.all_socks.items():
-            if s == sock:
-                node_to_delete = node
-        
-        #remove the node
-        del self.all_socks[node_to_delete]
-
-
-
-    def get_storage(self):
-        """
-        Storage values for all nodes including this one
-        """
-
-        new_storage = {}
-        for val in self.general_map.values():
-            if val[0] not in new_storage:
-                new_storage[val[0]] = 0
-            new_storage[val[0]] += val[4]
-            if val[1] not in new_storage:
-                new_storage[val[1]] = 0
-            new_storage[val[1]] += val[4]
-
-        return new_storage
 
 
 
@@ -404,7 +202,6 @@ class Daemon:
         Get map of image hashkey to image (in case there is the same hash, the best image remains).
         """
         print("\nStarting my img list\n")
-        self.img_map={}
         imageList= os.listdir(self.folder_path)
 
         for img_name in imageList:
@@ -423,22 +220,22 @@ class Daemon:
                 self.delete_file(img_name)
                 continue
 
-            if hash not in self.img_map:
-                print("New image:", img_path)
-                self.img_map[hash]= (num_colors, num_pixeis, num_bytes)
+            if hash not in self.my_imgs:
+                print("[local] New image:", img_path)
+                self.my_imgs[hash]= (num_colors, num_pixeis, num_bytes)
                 self.rename_file(img_name, hash)
 
-            elif self.is_better(num_colors, self.img_map[hash][0], num_pixeis, self.img_map[hash][1], num_bytes, self.img_map[hash][2], self.port, 4999):
-                print("Better image found: ", img_path)
+            elif self.is_better(num_colors, self.my_imgs[hash][0], num_pixeis, self.my_imgs[hash][1], num_bytes, self.my_imgs[hash][2], self.port, 4999):
+                print("[local] Better image found: ", img_path)
                 self.delete_file(hash)
-                self.img_map[hash] = (num_colors, num_pixeis, num_bytes)
+                self.my_imgs[hash] = (num_colors, num_pixeis, num_bytes)
                 self.rename_file(img_name, hash)
 
             else:
-                print("Worse image found: ", img_path)
+                print("[local] Worse image found: ", img_path)
                 self.delete_file(img_name)
 
-
+    
 
     def starting_updates(self):
         """
@@ -446,9 +243,9 @@ class Daemon:
         And images per node.
         """
 
-        for node in self.all_nodes[1:]:
+        for node in self.all_nodes:
             self.storage[node] = 0
-            self.nodes_imgs[node] =[]
+            self.nodes_imgs[node] = []
 
         for key, val in self.general_map.items():
             if val[0] != self.my_node:
@@ -460,14 +257,32 @@ class Daemon:
 
         print("\nStarting updates done\n")
 
+    
+
+    def get_storage(self):
+        """
+        Storage values for all nodes including this one
+        """
+
+        new_storage = {}
+        for val in self.general_map.values():
+            if val[0] not in new_storage:
+                new_storage[val[0]] = 0
+            new_storage[val[0]] += val[4]
+            if val[1] not in new_storage:
+                new_storage[val[1]] = 0
+            new_storage[val[1]] += val[4]
+
+        return new_storage
 
 
+    
     def add_new_node(self, node, sock):
         """
-        Add new node to all_nodes and all_socks.
+        Add new node.
         """
-        if node == self.my_node:
-            return
+        # if node == self.my_node:
+        #     return
         self.all_nodes.append(node)
         self.all_socks[node] = sock
         self.storage[node] = 0
@@ -476,6 +291,24 @@ class Daemon:
 
 
     
+    def connect_to_nodes(self, nodes):
+        """ 
+        connect to other nodes 
+        """
+        for node in nodes:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            print("Connecting to ", node)
+            sock.connect(node)
+            self.add_new_node(node, sock)
+            #connect to node
+            connect_msg = P.msg_connect(self.node_type, self.host, self.port)
+            print("Connect to daemon port: ", node[1])
+            P.send_msg(connect_msg, self.all_socks[node])
+            #register daemon socket
+            self.sel.register(self.all_socks[node], selectors.EVENT_READ, self.read)
+
+
+
     def update_data(self, update):
         """
         Update general_map and storage.
@@ -493,32 +326,35 @@ class Daemon:
 
         if update[5] not in self.general_map:
             print("Update recived with new image: ", update[5])
-            if update[0] in self.all_nodes[1:]:
+            if update[0] != self.my_node:
                 self.storage[update[0]] += update[4]
                 self.nodes_imgs[update[0]].append(update[5])
-            if update[1] in self.all_nodes[1:]:
+            if update[1] != self.my_node:
                 self.storage[update[1]] += update[4]
                 self.nodes_imgs[update[1]].append(update[5])
+                
             self.general_map[update[5]] = update[0:5]
 
         elif self.is_better(update[2], self.general_map[update[5]][2], update[3], self.general_map[update[5]][3], update[4], self.general_map[update[5]][4], update[0], self.general_map[update[5]][0]):
             print("Update recived with better image: ", update[5])
             val = self.general_map[update[5]]
-            if val[0] in self.all_nodes[1:]:
+            if val[0] != self.my_node:
                 self.storage[val[0]] -= val[4]
                 self.nodes_imgs[val[0]].remove(update[5])
-            if val[1] in self.all_nodes[1:]:
+            if val[1] != self.my_node:
                 self.storage[val[1]] -= val[4]
                 self.nodes_imgs[val[1]].remove(update[5])
-            if update[0] in self.all_nodes[1:]:
+            if update[0] != self.my_node:
                 self.storage[update[0]] += update[4]
                 self.nodes_imgs[update[0]].append(update[5])
-            if update[1] in self.all_nodes[1:]:
+            if update[1] != self.my_node:
                 self.storage[update[1]] += update[4]
                 self.nodes_imgs[update[1]].append(update[5])
 
             if update[0] == self.my_node or update[1] == self.my_node:
                 self.delete_file(update[5])
+                self.my_imgs.pop(update[5])
+
             self.general_map[update[5]] = update[0:5]
 
         else:
@@ -533,57 +369,42 @@ class Daemon:
         """
         if hashkey in self.general_map:
             val = self.general_map[hashkey]
-            if val[0] in self.all_nodes[1:]:
+            if val[0] != self.my_node:
                 self.storage[val[0]] -= val[4]
                 self.nodes_imgs[val[0]].remove(hashkey)
-            if val[1] in self.all_nodes[1:]:
+            if val[1] != self.my_node:
                 self.storage[val[1]] -= val[4]
                 self.nodes_imgs[val[1]].remove(hashkey)
 
         backup_node= min(self.storage, key=self.storage.get)
 
-        self.storage[backup_node] += self.img_map[hashkey][2]
+        self.storage[backup_node] += self.my_imgs[hashkey][2]
         self.nodes_imgs[backup_node].append(hashkey)
 
         return backup_node
+        
 
-
-
+    
     def save_img(self, img, update):
         """
         Save image if is better
         """
         if update[5] not in self.general_map:
-            print("Backup new image: ", update[5])
-            self.img_map[update[5]] = update[2:5].copy()
+            print("Backup recived new image: ", update[5])
+            self.my_imgs[update[5]] = update[2:5]
             self.save_file(img, update[5])
 
         elif self.is_better(update[2], self.general_map[update[5]][2], update[3], self.general_map[update[5]][3], update[4], self.general_map[update[5]][4], update[0], self.general_map[update[5]][0]):
-            print("Backup better image: ", update[5])
-            if update[5] in self.img_map:
+            print("Backup recived better image: ", update[5])
+            if update[5] in self.my_imgs:
                 self.delete_file(update[5])
-            self.img_map[update[5]] = update[2:5].copy()
+            self.my_imgs[update[5]] = update[2:5]
             self.save_file(img, update[5])
 
         else:
-            print("Backup worse image: ", update[5])
+            print("Backup recived worse image: ", update[5])
 
 
-
-    def send_update(self, hashkey):
-        """
-        Send update to all nodes
-        """
-        update= self.general_map[hashkey].copy()
-        update.append(hashkey)
-
-        for sock in self.all_socks.values():
-            update_msg = P.msg_update(update)
-            P.send_msg(update_msg, sock)
-
-        print("Update sent to all nodes")
-
-    
 
     def send_img(self, hashkey, node):
         """
@@ -601,82 +422,90 @@ class Daemon:
 
 
 
+    def send_update(self, hashkey):
+        """
+        Send update to all nodes
+        """
+        update= self.general_map[hashkey].copy()
+        update.append(hashkey)
+
+        for sock in self.all_socks.values():
+            update_msg = P.msg_update(update)
+            P.send_msg(update_msg, sock)
+
+        print("Update sent to all nodes")
+
+
+
     def backup_and_update(self, hashkey):
         """
         Backup image to best node and send update.
         """
         backup_node = self.backup_node(hashkey)
-        self.general_map[hashkey] = [self.my_node, backup_node, self.img_map[hashkey][0], self.img_map[hashkey][1], self.img_map[hashkey][2]]
+        self.general_map[hashkey] = [self.my_node, backup_node, self.my_imgs[hashkey][0], self.my_imgs[hashkey][1], self.my_imgs[hashkey][2]]
         self.send_img(hashkey, backup_node)
         self.send_update(hashkey)
-        
+
 
 
     def merge_img(self, hashkey):
         """
         Merge img with genereal_map.
         """
-        
-        if len(self.all_nodes) == 1:
-            self.can_merge = False
-            return  
+        if hashkey not in self.my_imgs:
+            return
 
         if hashkey not in self.general_map:
-                print("New image:", hashkey)
-                self.backup_and_update(hashkey)
+            print("New image to send:", hashkey)
+            self.backup_and_update(hashkey)
                       
-        elif self.is_better(self.img_map[hashkey][0], self.general_map[hashkey][2], self.img_map[hashkey][1], self.general_map[hashkey][3], self.img_map[hashkey][2], self.general_map[hashkey][4], self.port, 4999):
-            print("Better image found: ", hashkey)
+        elif self.is_better(self.my_imgs[hashkey][0], self.general_map[hashkey][2], self.my_imgs[hashkey][1], self.general_map[hashkey][3], self.my_imgs[hashkey][2], self.general_map[hashkey][4], self.port, 4999):
+            print("Better image to send: ", hashkey)
             self.backup_and_update(hashkey)
             
-        else:
-            print("Worse image found: ", hashkey)
-            self.delete_file(hashkey)
-            self.img_map.pop(hashkey)
+        # else:
+        #     print("Worse image to send: ", hashkey)
+        #     self.delete_file(hashkey)
+        #     self.my_imgs.pop(hashkey)
 
-    
-    
+
+
     def handle_disconect(self, node):
         """
         Re-send backup images if node dies, update self.general_map and self.storage.
         """
         print("\nNode disconnected: ", node, "\n")
 
-        if node in self.all_nodes[1:]:
-            self.all_nodes.remove(node)
+        self.all_nodes.remove(node)
         self.all_socks.pop(node)
-
+        
         if self.central_node == node:
-            
             self.central_node= self.my_node
-            for node_ in self.all_nodes[1:]:
+            for node_ in self.all_nodes:
                 if self.central_node[1] > node_[1]:
                     self.central_node = node_
             print("New central node: ", self.central_node)
         
-        self.storage.pop(node)
 
-        nodes_imgs_copy = self.nodes_imgs.copy()
-        self.nodes_imgs.pop(node)
-        
-
-        for hashkey in nodes_imgs_copy[node]:
+        for hashkey in self.nodes_imgs[node].copy():
 
             val = self.general_map[hashkey]
-            if val[0] in self.all_nodes[1:]:
+            if val[0] != self.my_node:
                 self.storage[val[0]] -= val[4]
                 self.nodes_imgs[val[0]].remove(hashkey)
-            if val[1] in self.all_nodes[1:]:
+            if val[1] != self.my_node:
                 self.storage[val[1]] -= val[4]
                 self.nodes_imgs[val[1]].remove(hashkey)
+                
             self.general_map.pop(hashkey)
 
-            if hashkey in self.img_map:
-                self.imgs_to_backup.append(hashkey)
-        
-        if len(self.imgs_to_backup) > 0:
-            self.need_backup = True
-        
+            if hashkey in self.my_imgs:
+                self.imgs_to_send.append(hashkey)
+
+
+        self.storage.pop(node)
+        self.nodes_imgs.pop(node)
+
 
 
     def client_request(self, hashkey, conn):
@@ -685,7 +514,7 @@ class Daemon:
         """
         print("Image requested: ", hashkey)
 
-        if hashkey in self.img_map:
+        if hashkey in self.my_imgs:
             print("Image found: ", hashkey)
             msg = P.msg_request_image_ack(Image.open(os.path.join(self.folder_path, hashkey)))
             P.send_msg(msg, conn)
@@ -700,5 +529,107 @@ class Daemon:
         print("Requesting image: ", hashkey)
         msg = P.msg_request_image(hashkey)
         P.send_msg(msg, self.all_socks[self.general_map[hashkey][0]])
+
+
+    
+    def verify(self, sock, mask):
+        conn, addr = sock.accept()
+        connect_msg = P.receive_msg(conn)
+
+        if connect_msg:
+            print("msg recv: ", connect_msg)
+            host = connect_msg["recv_host"]
+            port = connect_msg["recv_port"]
+            node_type = connect_msg["node_type"]
+            connect_type = connect_msg["type"]
+
+            if node_type == "daemon":
+                print("DEAMON WANTS TO CONNECT")
+
+                if connect_type == "first_connect":
+
+                    # send to my neighbour all the nodes i know
+                    nodes_msg = P.msg_connect_ack(self.all_nodes)
+                    P.send_msg(nodes_msg, conn)
+
+                #store the neighbour node
+                self.add_new_node((host, port), conn)           
+
+            if node_type == "client":
+                print("CLIENT WANTS TO CONNECT")
+                #store the node client
+                self.client = conn
+
+            self.sel.register(conn, selectors.EVENT_READ, self.read)
+
+
+
+    def read(self, sock :socket, mask):
         
+        msg = P.receive_msg(sock)
+
+        #print("Msg type: ", msg["type"])
+
+        if msg:
+            msg_type = msg["type"]
+
+            if msg_type == "connect_ack":
+                nodes = msg["nodes"]  # array with neighbour nodes
+                self.connect_to_nodes(nodes)
+
+                msg = P.req_general_map()
+                P.send_msg(msg, self.all_socks[self.central_node])
+
+            elif msg_type == "general_map":
+                # general_map_received = msg["general_map"]
+                # general_map_received.update(self.general_map)
+                # self.general_map = general_map_received.copy()
+                self.general_map.update(msg["general_map"])
+                self.starting_updates()
+                self.can_merge = True
+
+            elif msg_type == "req_general_map":
+                msg= P.msg_general_map(self.general_map)
+                P.send_msg(msg, sock)
+                self.can_merge = True
+                
+
+            elif msg_type == "request_list":
+                if len(self.general_map) == 0:
+                    request_msg = P.msg_image_list(list(self.my_imgs.keys()))
+                else:
+                    request_msg = P.msg_image_list(list(self.general_map.keys()))
+
+                P.send_msg(request_msg, sock)
+
+            elif msg_type == "update":
+                self.update_data(msg["update"])
+
+            elif msg_type == "image_backup":
+                self.save_img(msg["image"], msg["update"])
+
+            elif msg_type == "debug":
+                debug_request_msg = P.msg_debug_ack(self.general_map, self.all_nodes, self.storage, self.get_storage())
+                P.send_msg(debug_request_msg, self.client)
+                print("debug message sent")
+
+            elif msg_type == "request":
+                self.client_request(msg["hashkey"], sock)
+
+            elif msg_type == "request_ack":
+                msg= P.msg_request_image_ack(msg["image"])
+                P.send_msg(msg, self.client)
+
+            else:
+                print("ALERT: unknow message received!")
+
+
+        else:
+            self.sel.unregister(sock)
+            sock.close()
+
+            for node in self.all_nodes:
+                if self.all_socks[node] == sock:
+                    self.handle_disconect(node)
+                    break
 
