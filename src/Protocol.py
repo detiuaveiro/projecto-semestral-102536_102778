@@ -12,9 +12,23 @@ class Protocol:
         
 
     @classmethod
-    def msg_connect_ack(cls, nodes : list, general_map: dict):
+    def msg_connect_ack(cls, nodes : list):
         """ Send neighbours message """
-        msg = pickle.dumps({"type": "connect_ack", "nodes": nodes, "general_map": general_map})
+        msg = pickle.dumps({"type": "connect_ack", "nodes": nodes})
+        return msg
+
+    
+    @classmethod
+    def req_general_map(cls):
+        """ Request general map message """
+        msg = pickle.dumps({"type": "req_general_map"})
+        return msg
+
+
+    @classmethod
+    def msg_general_map(cls, general_map):
+        """ Send general map message """
+        msg = pickle.dumps({"type": "general_map", "general_map": general_map})
         return msg
 
 
@@ -70,8 +84,8 @@ class Protocol:
         return msg
 
     @classmethod
-    def msg_debug_ack(cls, general_map, all_nodes, storage):
-        msg = pickle.dumps({"type": "debug_ack", "general_map": general_map, "all_nodes": all_nodes, "storage": storage})
+    def msg_debug_ack(cls, general_map, all_nodes, storage, new_storage):
+        msg = pickle.dumps({"type": "debug_ack", "general_map": general_map, "all_nodes": all_nodes, "storage": storage, "new_storage": new_storage})
         return msg
 
 

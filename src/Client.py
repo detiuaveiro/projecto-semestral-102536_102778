@@ -60,13 +60,17 @@ class Client:
                 general_map = msg["general_map"]
                 all_nodes = msg["all_nodes"]
                 storage = msg["storage"]
+                new_storage = msg["new_storage"]
 
                 print("\nDEBUG\n")
-                for item in sorted(general_map.items()):
-                    print(item)
+                # for item in sorted(general_map.items()):
+                #     print(item)
+                print("General map size:", len(general_map))
                 for item in sorted(storage.items()):
                     print(item)
                 for item in sorted(all_nodes):
+                    print(item)
+                for item in sorted(new_storage.items()):
                     print(item)
 
             elif msg_type == "image":

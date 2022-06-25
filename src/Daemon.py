@@ -1,12 +1,10 @@
 import socket
 import queue
 import selectors
-import pickle
 from .Protocol import Protocol as P
 from PIL import Image
 import imagehash
 import os
-import time
 
 
 class Daemon:
@@ -16,7 +14,7 @@ class Daemon:
     def __init__(self, folder_path):
         self.canceled = False
         self.node_type = "daemon"
-        self.central_node = self.find_central_node()
+        
         self.host, self.port = self.get_addr()  # reveiving socket (endpoint)
 
         self.client = None
@@ -45,6 +43,8 @@ class Daemon:
         print(f"Clients can connect via: {self.host} {self.port}")
 
         self.starting_img_list()
+
+        self.central_node = self.find_central_node()
 
         self.imgs_to_send = queue.Queue(len(self.img_map))
 
@@ -97,7 +97,7 @@ class Daemon:
                 if connect_type == "first_connect":
 
                     # send to my neighbour all the nodes i know
-                    nodes_msg = P.msg_connect_ack(self.all_nodes[1:], self.general_map)
+                    nodes_msg = P.msg_connect_ack(self.all_nodes[1:])
                     P.send_msg(nodes_msg, conn)
 
 
@@ -139,16 +139,23 @@ class Daemon:
 
             if msg_type == "connect_ack":
                 nodes = msg["nodes"]  # array with neighbour nodes
-                self.general_map = msg["general_map"]
-                print("General map received: ", self.general_map)
                 self.connect_to_nodes(nodes)
                 self.all_nodes += nodes
+
+                msg = P.req_general_map()
+                P.send_msg(msg, self.all_socks[self.central_node])
+
+            elif msg_type == "general_map":
+                general_map_received = msg["general_map"]
+                general_map_received.update(self.general_map)
+                self.general_map = general_map_received.copy()
                 self.starting_updates()
-                print(self.all_nodes)
-                print(self.storage)
-                # self.merge_my_img()
-                # self.merge_done = True
                 self.can_merge = True
+
+            elif msg_type == "req_general_map":
+                msg= P.msg_general_map(self.general_map)
+                P.send_msg(msg, sock)
+                
 
             elif msg_type == "request_list":
                 if len(self.general_map) == 0:
@@ -165,7 +172,7 @@ class Daemon:
                 self.save_img(msg["image"], msg["update"])
 
             elif msg_type == "debug":
-                debug_request_msg = P.msg_debug_ack(self.general_map, self.all_nodes, self.storage)
+                debug_request_msg = P.msg_debug_ack(self.general_map, self.all_nodes, self.storage, self.get_storage())
                 P.send_msg(debug_request_msg, self.client)
                 print("debug message sent")
 
@@ -314,6 +321,24 @@ class Daemon:
 
 
 
+    def get_storage(self):
+        """
+        Storage values for all nodes including this one
+        """
+
+        new_storage = {}
+        for val in self.general_map.values():
+            if val[0] not in new_storage:
+                new_storage[val[0]] = 0
+            new_storage[val[0]] += val[4]
+            if val[1] not in new_storage:
+                new_storage[val[1]] = 0
+            new_storage[val[1]] += val[4]
+
+        return new_storage
+
+
+
     def is_better(self, num_colors1, num_colors2, num_pixeis1, num_pixeis2, num_bytes1, num_bytes2, port1, port2):
         """
         Compare two images and return True if img1 is better than img2.
@@ -345,7 +370,8 @@ class Daemon:
         Delete image from disk.
         """
         img_path = os.path.join(self.folder_path, hashkey)
-        # os.remove(img_path)
+        if "node" in img_path:
+            os.remove(img_path)
         print("Deleted:", img_path)
 
     
@@ -581,9 +607,9 @@ class Daemon:
         """
         backup_node = self.backup_node(hashkey)
         self.general_map[hashkey] = [self.my_node, backup_node, self.img_map[hashkey][0], self.img_map[hashkey][1], self.img_map[hashkey][2]]
-        self.send_update(hashkey)
         self.send_img(hashkey, backup_node)
-
+        self.send_update(hashkey)
+        
 
 
     def merge_img(self, hashkey):

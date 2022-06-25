@@ -7,6 +7,9 @@ function main()
     daemon=""
     client=""
 
+    rm -r ../nodes
+    cp -r ../nodes_cpy ../nodes
+
     for ((i=0; i<num_nodes; i++)); do
     {
 
@@ -21,6 +24,8 @@ function main()
         konsole --new-tab --noclose --workdir $dir -e "$client" &
 
         echo "Client $i started"
+
+        # sleep 5
     }
     done
 }
