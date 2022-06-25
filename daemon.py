@@ -1,6 +1,6 @@
 """"Call daemon"""
 import argparse
-from src.Daemon_ import Daemon
+from src.Daemon import Daemon
 
 if __name__ == "__main__":
 

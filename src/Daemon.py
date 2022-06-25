@@ -325,7 +325,7 @@ class Daemon:
                 self.nodes_imgs[update[1]] = []
 
         if update[5] not in self.general_map:
-            print("Update recived with new image: ", update[5])
+            print("Update received with new image: ", update[5])
             if update[0] != self.my_node:
                 self.storage[update[0]] += update[4]
                 self.nodes_imgs[update[0]].append(update[5])
@@ -336,7 +336,7 @@ class Daemon:
             self.general_map[update[5]] = update[0:5]
 
         elif self.is_better(update[2], self.general_map[update[5]][2], update[3], self.general_map[update[5]][3], update[4], self.general_map[update[5]][4], update[0], self.general_map[update[5]][0]):
-            print("Update recived with better image: ", update[5])
+            print("Update received with better image: ", update[5])
             val = self.general_map[update[5]]
             if val[0] != self.my_node:
                 self.storage[val[0]] -= val[4]
@@ -358,7 +358,7 @@ class Daemon:
             self.general_map[update[5]] = update[0:5]
 
         else:
-            print("Update recived with worse image: ", update[5])
+            print("Update received with worse image: ", update[5])
 
 
 
@@ -390,19 +390,19 @@ class Daemon:
         Save image if is better
         """
         if update[5] not in self.general_map:
-            print("Backup recived new image: ", update[5])
+            print("Backup received new image: ", update[5])
             self.my_imgs[update[5]] = update[2:5]
             self.save_file(img, update[5])
 
         elif self.is_better(update[2], self.general_map[update[5]][2], update[3], self.general_map[update[5]][3], update[4], self.general_map[update[5]][4], update[0], self.general_map[update[5]][0]):
-            print("Backup recived better image: ", update[5])
+            print("Backup received better image: ", update[5])
             if update[5] in self.my_imgs:
                 self.delete_file(update[5])
             self.my_imgs[update[5]] = update[2:5]
             self.save_file(img, update[5])
 
         else:
-            print("Backup recived worse image: ", update[5])
+            print("Backup received worse image: ", update[5])
 
 
 
@@ -463,14 +463,15 @@ class Daemon:
             print("Better image to send: ", hashkey)
             self.backup_and_update(hashkey)
             
-        # else:
-        #     print("Worse image to send: ", hashkey)
-        #     self.delete_file(hashkey)
-        #     self.my_imgs.pop(hashkey)
+        else:
+            print("Worse image to send: ", hashkey)
+            if self.general_map[hashkey][0] != self.my_node and self.general_map[hashkey][1] != self.my_node: 
+                self.delete_file(hashkey)
+                self.my_imgs.pop(hashkey)
 
 
 
-    def handle_disconect(self, node):
+    def handle_disconnect(self, node):
         """
         Re-send backup images if node dies, update self.general_map and self.storage.
         """
@@ -580,6 +581,12 @@ class Daemon:
                 msg = P.req_general_map()
                 P.send_msg(msg, self.all_socks[self.central_node])
 
+
+                print("-------------------------------")
+                for n in self.all_nodes:
+                    print(n)
+                print("-------------------------------")
+
             elif msg_type == "general_map":
                 # general_map_received = msg["general_map"]
                 # general_map_received.update(self.general_map)
@@ -630,6 +637,6 @@ class Daemon:
 
             for node in self.all_nodes:
                 if self.all_socks[node] == sock:
-                    self.handle_disconect(node)
+                    self.handle_disconnect(node)
                     break
 
