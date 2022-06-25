@@ -147,7 +147,7 @@ class Client:
         while not self.canceled:
 
 
-            sys.stdout.write('>> ' )
+            sys.stdout.write('\n>> ' )
             sys.stdout.flush()
 
             for key, mask in self.sel.select():
