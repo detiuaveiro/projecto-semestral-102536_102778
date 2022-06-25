@@ -635,24 +635,21 @@ class Daemon:
         
 
         for hashkey in nodes_imgs_copy[node]:
+
+            val = self.general_map[hashkey]
+            if val[0] in self.all_nodes[1:]:
+                self.storage[val[0]] -= val[4]
+                self.nodes_imgs[val[0]].remove(hashkey)
+            if val[1] in self.all_nodes[1:]:
+                self.storage[val[1]] -= val[4]
+                self.nodes_imgs[val[1]].remove(hashkey)
+            self.general_map.pop(hashkey)
+
             if hashkey in self.img_map:
                 self.imgs_to_backup.append(hashkey)
         
         if len(self.imgs_to_backup) > 0:
             self.need_backup = True
-
-        #     # TODO UPDATE DATA EVERYTIME WE GET AN UPDATE
-
-        #     if node in self.all_nodes:
-        #         self.storage[node] = []
-        #         for hash in self.nodes_imgs[node][self.nodes_imgs[node].index(hashkey):]:
-        #             self.storage[node] += self.general_map[hash][2]
-        #         return
-
-            # if hashkey in self.img_map:
-            #     print("Remaking backup for: ", hashkey)
-            #     self.backup_and_update(hashkey)
-
         
 
 
@@ -674,7 +671,6 @@ class Daemon:
             P.send_msg(msg, conn)
             return 
             
-        #TODO request image to self.all_socks[self.general_map[hashkey][0]]
         print("Requesting image: ", hashkey)
         msg = P.msg_request_image(hashkey)
         P.send_msg(msg, self.all_socks[self.general_map[hashkey][0]])
